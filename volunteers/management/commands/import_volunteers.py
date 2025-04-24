@@ -38,7 +38,7 @@ class Command(BaseCommand):
             else:
                 df = pd.read_excel(file_path)
 
-            required_columns = ['Name', 'Surname', 'Email', 'Mobile phone number', 'processed in application', 'position']
+            required_columns = ['Name', 'Surname', 'Email', 'Phone', 'Status', 'Position']
             
             # Verify required columns exist
             missing_columns = [col for col in required_columns if col not in df.columns]
@@ -63,12 +63,12 @@ class Command(BaseCommand):
             position_assigned_count = 0
 
             for _, row in df.iterrows():
-                # Skip if not processed in application
-                if pd.notna(row['processed in application']) and row['processed in application'].lower() != 'yes':
+                # Skip if not Status
+                if pd.notna(row['Status']) and row['Status'].lower() != 'yes':
                     continue
 
                 # Format phone number
-                phone = self.format_phone(row['Mobile phone number'])
+                phone = self.format_phone(row['Phone'])
 
                 # Create or update volunteer
                 email = row['Email']
@@ -82,6 +82,7 @@ class Command(BaseCommand):
                         'first_name': str(row['Name']).strip() if pd.notna(row['Name']) else '',
                         'last_name': str(row['Surname']).strip() if pd.notna(row['Surname']) else '',
                         'phone_number': phone,
+                        'notes': f"Availiability: {str(row['Availiability']).strip() if pd.notna(row.get('Availiability', '')) else 'Not specified'}\nLevel: {str(row['Level']).strip() if pd.notna(row.get('Level', '')) else 'Not specified'}"
                     }
                 )
 
@@ -91,8 +92,8 @@ class Command(BaseCommand):
                     updated_count += 1
 
                 # Assign position if it matches
-                if pd.notna(row['position']):
-                    position_name = row['position'].strip().lower()
+                if pd.notna(row['Position']):
+                    position_name = row['Position'].strip().lower()
                     if position_name in positions:
                         position = positions[position_name]
                         # Create position assignment if it doesn't exist
