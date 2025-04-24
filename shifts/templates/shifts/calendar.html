@@ -1,0 +1,62 @@
+{% extends 'shifts/base.html' %}
+
+{% block title %}Shift Calendar{% endblock %}
+
+{% block content %}
+<div class="bg-white rounded-lg shadow p-6">
+    <h2 class="text-2xl font-bold mb-4">Shift Calendar</h2>
+    
+    <div class="overflow-x-auto">
+        <table class="min-w-full bg-white">
+            <thead>
+                <tr class="bg-gray-100">
+                    <th class="px-6 py-3 border-b text-left">Date</th>
+                    <th class="px-6 py-3 border-b text-left">Time</th>
+                    <th class="px-6 py-3 border-b text-left">Positions</th>
+                    <th class="px-6 py-3 border-b text-left">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for shift in shifts %}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-6 py-4 border-b">{{ shift.date }}</td>
+                    <td class="px-6 py-4 border-b">{{ shift.start_time }} - {{ shift.end_time }}</td>
+                    <td class="px-6 py-4 border-b">
+                        {% for position in shift.shiftposition_set.all %}
+                        <div class="mb-2 p-2 border rounded">
+                            <strong>{{ position.position.name }}</strong>
+                            <select
+                                class="ml-2 border rounded p-1"
+                                hx-post="{% url 'assign_volunteer' %}"
+                                hx-trigger="change"
+                                hx-swap="none"
+                                hx-vals='{"shift_position_id": "{{ position.id }}"}'
+                                name="volunteer"
+                            >
+                                <option value="">Unassigned</option>
+                                {% for volunteer in volunteers %}
+                                <option value="{{ volunteer.id }}" {% if position.volunteer == volunteer %}selected{% endif %}>
+                                    {{ volunteer.get_full_name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            {% if position.volunteer and position.assigned_by %}
+                            <div class="text-sm text-gray-500 mt-1">
+                                Assigned by {{ position.assigned_by.get_full_name|default:position.assigned_by.username }} on {{ position.assigned_at|date:"M d, Y" }}
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </td>
+                    <td class="px-6 py-4 border-b">
+                        <button class="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600">
+                            Delete
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

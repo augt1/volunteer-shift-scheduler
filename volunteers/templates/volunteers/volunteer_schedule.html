@@ -1,0 +1,70 @@
+{% extends 'shifts/base.html' %}
+
+{% load shift_tags %}
+
+{% block title %}Volunteer Schedule{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-bold">Volunteer Schedule</h2>
+    </div>
+
+    <div class="bg-white shadow-sm rounded-lg overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50 z-10 min-w-[200px]">
+                        Volunteer
+                    </th>
+                    {% for day in days %}
+                    <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[180px]">
+                        {{ day|date:"D, M j" }}
+                    </th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                {% for volunteer in volunteers %}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-6 py-4 whitespace-nowrap sticky left-0 bg-white z-10 border-r">
+                        <div class="flex items-center justify-between">
+                            <div class="font-medium text-gray-900">{{ volunteer.first_name }} {{ volunteer.last_name }}</div>
+                            <div class="text-sm text-gray-500 ml-4">
+                                {{ volunteer.shift_count }} shifts, {{ volunteer.total_hours|floatformat:1 }}h
+                            </div>
+                        </div>
+                        <div class="text-sm text-gray-500">{{ volunteer.email }}</div>
+                    </td>
+                    {% for day in days %}
+                    <td class="px-6 py-4">
+                        {% with shifts=shifts_by_volunteer|get_item:volunteer.id|get_item:day %}
+                        {% if shifts %}
+                        {% for shift in shifts %}
+                        <div class="text-sm {% if forloop.counter > 1 %}mt-2{% endif %}">
+                            <div class="font-medium text-gray-900">{{ shift.position.name }}</div>
+                            <div class="text-gray-500">
+                                {{ shift.start_time|time:"H:i" }} - {{ shift.end_time|time:"H:i" }}<br>
+                                {{ shift.location.name }}
+                            </div>
+                        </div>
+                        {% endfor %}
+                        {% else %}
+                        <div class="text-sm text-gray-400">—</div>
+                        {% endif %}
+                        {% endwith %}
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="{{ days|length|add:1 }}" class="px-6 py-4 text-center text-gray-500">
+                        No volunteers found
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,37 @@
+{% load shift_tags %}
+
+<div id="shift-{{ shift.id }}" class="block p-2 border rounded {% if shift.volunteers.count >= shift.max_volunteers %}bg-gray-100{% else %}hover:bg-gray-50{% endif %}">
+    <div class="flex justify-between items-center">
+        <div class="text-sm font-medium">{{ shift.position.name }}</div>
+        <div class="text-xs text-gray-500">
+            {{ shift.volunteers.count }}/{{ shift.max_volunteers }}
+        </div>
+    </div>
+    
+    {% if shift.volunteers.exists %}
+    <div class="mt-2 space-y-1">
+        {% for volunteer in shift.volunteers.all %}
+        <div class="text-xs text-gray-600">
+            {{ volunteer.first_name }} {{ volunteer.last_name }}
+            <button class="ml-2 text-red-500 hover:text-red-700"
+                    hx-delete="{% url 'unassign_volunteer' shift.id volunteer.id %}"
+                    hx-confirm="Are you sure you want to remove this volunteer?"
+                    hx-target="#shift-{{ shift.id }}"
+                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+                Remove
+            </button>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    
+    {% if shift.volunteers.count < shift.max_volunteers %}
+    <button 
+        class="mt-2 w-full px-2 py-1 text-xs text-blue-600 border border-blue-300 rounded hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+        hx-get="{% url 'assign_volunteer_modal' shift.id %}"
+        hx-target="#modal"
+        hx-trigger="click">
+        Assign Volunteer
+    </button>
+    {% endif %}
+</div>

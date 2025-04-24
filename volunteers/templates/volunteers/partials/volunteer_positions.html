@@ -1,0 +1,9 @@
+<div id="volunteer-positions-{{ volunteer.pk }}" class="flex flex-wrap gap-1">
+    {% for position in volunteer.available_positions.all %}
+    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-{{ position.color }}-100 text-{{ position.color }}-800">
+        {{ position.name }}
+    </span>
+    {% empty %}
+    <span class="text-sm text-gray-500">-</span>
+    {% endfor %}
+</div>

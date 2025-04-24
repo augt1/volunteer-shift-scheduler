@@ -1,0 +1,28 @@
+{% extends 'shifts/base.html' %}
+
+{% block title %}Delete Volunteer{% endblock %}
+
+{% block content %}
+<div class="bg-white rounded-lg shadow p-6">
+    <div class="mb-6">
+        <h2 class="text-2xl font-bold">Delete Volunteer</h2>
+    </div>
+
+    <div class="space-y-4">
+        <p class="text-gray-700">
+            Are you sure you want to delete the volunteer "{{ volunteer.get_full_name }}"?
+            This action cannot be undone.
+        </p>
+
+        <form method="post" class="flex justify-end space-x-4">
+            {% csrf_token %}
+            <a href="{% url 'volunteer_list' %}" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600">
+                Cancel
+            </a>
+            <button type="submit" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">
+                Delete
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,19 @@
+{% extends 'shifts/base.html' %}
+
+{% block title %}No Events{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <div class="text-center">
+        <h2 class="text-2xl font-bold mb-4">No Events Found</h2>
+        <p class="text-gray-600">There are no events currently scheduled. Please check back later or contact an administrator.</p>
+        {% if user.is_staff %}
+        <div class="mt-4">
+            <a href="/admin/events/event/add/" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                Create Event
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

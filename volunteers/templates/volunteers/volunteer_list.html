@@ -1,0 +1,363 @@
+{% extends 'shifts/base.html' %}
+{% load static %}
+
+{% block title %}Volunteers{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <form id="csrf-form">
+        {% csrf_token %}
+    </form>
+    <!-- Stats Overview -->
+    <div class="mb-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <!-- Total Stats Card -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">Overall Stats</h3>
+            <div class="space-y-2">
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-600">Total Volunteers:</span>
+                    <span class="font-semibold">{{ total_volunteers }}</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-600">Active Volunteers:</span>
+                    <span class="font-semibold">{{ active_volunteers }}</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-600">Assigned Volunteers:</span>
+                    <span class="font-semibold">{{ assigned_volunteers }}</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-600">Unassigned Volunteers:</span>
+                    <span class="font-semibold">{{ unassigned_volunteers }}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Position Stats Cards -->
+        <div class="bg-white rounded-lg shadow p-6 md:col-span-2">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">Position Distribution</h3>
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                {% for position in position_stats %}
+                <div class="bg-{{ position.color }}-50 rounded p-4 border border-{{ position.color }}-200">
+                    <h4 class="text-{{ position.color }}-800 font-medium mb-2">{{ position.name }}</h4>
+                    <p class="text-{{ position.color }}-600">
+                        <span class="text-2xl font-bold">{{ position.volunteer_count }}</span>
+                        <span class="text-sm ml-1">volunteers</span>
+                    </p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="bg-white rounded-lg shadow p-6 mb-8">
+        <form method="get" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+                <label for="search" class="block text-sm font-medium text-gray-700 mb-1">Search</label>
+                <input type="text" name="search" id="search" value="{{ search_query }}"
+                    placeholder="Search name, email, phone..."
+                    class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+            </div>
+            <div>
+                <label for="position" class="block text-sm font-medium text-gray-700 mb-1">Position</label>
+                <select name="position" id="position"
+                    class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                    <option value="">All Positions</option>
+                    {% for pos in positions %}
+                    <option value="{{ pos.id }}" {% if position_filter == pos.id|stringformat:"s" %}selected{% endif %}>
+                        {{ pos.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label for="status" class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                <select name="status" id="status"
+                    class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
+                    <option value="">All Status</option>
+                    <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Active</option>
+                    <option value="inactive" {% if status_filter == 'inactive' %}selected{% endif %}>Inactive</option>
+                    <option value="assigned" {% if status_filter == 'assigned' %}selected{% endif %}>Assigned</option>
+                    <option value="unassigned" {% if status_filter == 'unassigned' %}selected{% endif %}>Unassigned</option>
+                </select>
+            </div>
+            <div class="md:col-span-3 flex justify-end space-x-2">
+                <a href="{% url 'volunteer_list' %}" class="bg-gray-100 text-gray-700 px-4 py-2 rounded hover:bg-gray-200">
+                    Clear Filters
+                </a>
+                <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                    Apply Filters
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Volunteer List -->
+    <div class="bg-white rounded-lg shadow overflow-hidden">
+        <div class="px-4 py-5 sm:px-6 border-b border-gray-200 flex justify-between items-center">
+            <h2 class="text-lg font-medium text-gray-900">Volunteer List</h2>
+            <a href="{% url 'volunteer_create' %}" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                Add Volunteer
+            </a>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Volunteer
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Phone
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Positions
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Total Shifts
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Total Hours
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Email Status
+                        </th>
+                        <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Actions
+                        </th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for volunteer in volunteers %}
+                    <tr>
+                        <td class="px-6 py-4">
+                            <div class="flex items-center space-x-3">
+                                <div>
+                                    <div class="text-sm font-medium text-gray-900 flex items-center space-x-2">
+                                        {% if volunteer.has_confirmed %}
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                                                <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                                </svg>
+                                                Confirmed
+                                            </span>
+                                        {% else %}
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+                                                <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                                </svg>
+                                                Pending
+                                            </span>
+                                        {% endif %}
+                                        <span>{{ volunteer }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-500">
+                            {{ volunteer.phone_number|default:"-" }}
+                        </td>
+                        <td class="px-6 py-4">
+                            <div x-data="{ isOpen: false }">
+                                <div class="cursor-pointer hover:bg-gray-50" @click="isOpen = true">
+                                    <div id="volunteer-positions-{{ volunteer.pk }}" class="flex flex-wrap gap-1">
+                                        {% for position in volunteer.available_positions.all %}
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-{{ position.color }}-100 text-{{ position.color }}-800">
+                                            {{ position.name }}
+                                        </span>
+                                        {% empty %}
+                                        <span class="text-sm text-gray-500">-</span>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+
+                                <!-- Position Modal -->
+                                <div x-show="isOpen" 
+                                     class="relative z-50" 
+                                     role="dialog" 
+                                     aria-modal="true"
+                                     x-cloak>
+                                    <!-- Background backdrop -->
+                                    <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"></div>
+
+                                    <div class="fixed inset-0 z-10 overflow-y-auto" @click.away="isOpen = false">
+                                        <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+                                            <div class="relative transform overflow-hidden rounded-lg bg-white px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:p-6"
+                                                 @click.stop>
+                                                <div class="absolute right-0 top-0 pr-4 pt-4">
+                                                    <button type="button" @click="isOpen = false" class="rounded-md bg-white text-gray-400 hover:text-gray-500">
+                                                        <span class="sr-only">Close</span>
+                                                        <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12" />
+                                                        </svg>
+                                                    </button>
+                                                </div>
+
+                                                <div class="sm:flex sm:items-start">
+                                                    <div class="mt-3 text-center sm:mt-0 sm:text-left w-full">
+                                                        <h3 class="text-lg font-semibold leading-6 text-gray-900">
+                                                            Manage Positions - {{ volunteer.get_full_name }}
+                                                        </h3>
+                                                        <div class="mt-4">
+                                                            <form hx-post="{% url 'update_volunteer_positions' volunteer.pk %}"
+                                                                  hx-target="#volunteer-positions-{{ volunteer.pk }}"
+                                                                  hx-swap="outerHTML"
+                                                                  @submit="isOpen = false">
+                                                                {% csrf_token %}
+                                                                <div class="space-y-3">
+                                                                    {% for position in positions %}
+                                                                    <div class="relative flex items-start">
+                                                                        <div class="flex h-6 items-center">
+                                                                            <input type="checkbox"
+                                                                                   name="positions"
+                                                                                   value="{{ position.id }}"
+                                                                                   {% if position in volunteer.available_positions.all %}checked{% endif %}
+                                                                                   class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-600">
+                                                                        </div>
+                                                                        <div class="ml-3">
+                                                                            <label class="text-sm font-medium leading-6 text-gray-900">
+                                                                                {{ position.name }}
+                                                                            </label>
+                                                                        </div>
+                                                                    </div>
+                                                                    {% endfor %}
+                                                                </div>
+                                                                <div class="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
+                                                                    <button type="submit"
+                                                                            class="inline-flex w-full justify-center rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 sm:ml-3 sm:w-auto">
+                                                                        Save Changes
+                                                                    </button>
+                                                                    <button type="button"
+                                                                            @click="isOpen = false"
+                                                                            class="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto">
+                                                                        Cancel
+                                                                    </button>
+                                                                </div>
+                                                            </form>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-500">
+                            {{ volunteer.total_shifts|default:"0" }}
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-500">
+                            {{ volunteer.total_hours|default:"0"|floatformat:1 }}
+                        </td>
+                        <td class="px-6 py-4">
+                            <div x-data="emailHandler">
+                                {% if volunteer.notification_email_sent %}
+                                    <div class="flex items-center">
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                            Email Sent
+                                        </span>
+                                        <button
+                                            @click.prevent="sendEmail($event.target.closest('div'), {{ volunteer.pk }})"
+                                            type="button"
+                                            class="ml-2 inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                                        >
+                                            <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                                            </svg>
+                                            Resend
+                                        </button>
+                                    </div>
+                                {% else %}
+                                    <button
+                                        @click.prevent="sendEmail($event.target.closest('div'), {{ volunteer.pk }})"
+                                        type="button"
+                                        class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-full shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                                    >
+                                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                                        </svg>
+                                        Send Email
+                                    </button>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 text-right text-sm font-medium space-x-2">
+                            <a href="{% url 'volunteer_update' volunteer.pk %}" class="text-blue-600 hover:text-blue-900">Edit</a>
+                            <button class="text-red-600 hover:text-red-900"
+                                    hx-delete="{% url 'volunteer_delete' volunteer.pk %}"
+                                    hx-confirm="Are you sure you want to delete this volunteer?"
+                                    hx-target="closest tr"
+                                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+                                Delete
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('alpine:init', () => {
+    Alpine.data('emailHandler', () => ({
+        async sendEmail(el, volunteerId) {
+            const button = el.querySelector('button');
+            if (!button) return;
+            
+            // Store button state before modifying
+            const originalHtml = button.innerHTML;
+            button.disabled = true;
+            button.innerHTML = '<span class="inline-flex items-center"><svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Sending...</span>';
+            
+            try {
+                const response = await fetch(`/volunteers/volunteers/${volunteerId}/send-notification/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': document.querySelector('#csrf-form [name=csrfmiddlewaretoken]').value,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    el.innerHTML = `<div class="flex items-center">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            Email Sent
+                        </span>
+                        <button
+                            @click.prevent="sendEmail($event.target.closest('div'), ${volunteerId})"
+                            type="button"
+                            class="ml-2 inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                        >
+                            <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                            </svg>
+                            Resend
+                        </button>
+                    </div>`;
+                } else {
+                    throw new Error(data.message || 'Failed to send email');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error sending email: ' + error.message);
+                if (button) {
+                    button.disabled = false;
+                    button.innerHTML = originalHtml;
+                }
+            }
+        }
+    }));
+});
+</script>
+{% endblock %}

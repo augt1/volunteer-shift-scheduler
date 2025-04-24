@@ -1,0 +1,57 @@
+<!-- Modal content -->
+<div id="modal-content" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+    <div class="bg-white rounded-lg p-6 w-full max-w-md">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-lg font-semibold">Assign Volunteer</h3>
+            <button type="button" class="text-gray-400 hover:text-gray-600"
+                    hx-get="{% url 'close_modal' %}"
+                    hx-target="#modal"
+                    hx-trigger="click">
+                <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+
+        <div class="mb-4">
+            <p class="text-sm text-gray-600">
+                {{ shift.date|date:"l, F j" }} at {{ shift.location.name }}<br>
+                {{ shift.start_time|time:"H:i" }} - {{ shift.end_time|time:"H:i" }} ({{ shift.position.name }})
+            </p>
+        </div>
+
+        {% if available_volunteers %}
+        <div class="space-y-2 max-h-60 overflow-y-auto">
+            {% for volunteer in available_volunteers %}
+            <div class="flex items-center justify-between p-2 hover:bg-gray-50 rounded">
+                <div>
+                    <div class="font-medium">{{ volunteer.first_name }} {{ volunteer.last_name }}</div>
+                    <div class="text-sm text-gray-600">{{ volunteer.email }}</div>
+                </div>
+                <button class="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600"
+                        hx-post="{% url 'assign_volunteer' shift.id %}"
+                        hx-vals='{"volunteer_id": "{{ volunteer.id }}"}'
+                        hx-target="#shift-{{ shift.id }}"
+                        hx-swap="outerHTML"
+                        hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+                    Assign
+                </button>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center text-gray-600 py-4">
+            No available volunteers
+        </div>
+        {% endif %}
+
+        <div class="mt-4 text-right">
+            <button type="button" class="bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400"
+                    hx-get="{% url 'close_modal' %}"
+                    hx-target="#modal"
+                    hx-trigger="click">
+                Close
+            </button>
+        </div>
+    </div>
+</div>
