@@ -32,23 +32,38 @@
                         left: 0;
                         right: 0;
                         {% endif %}">
-                <a href="#" 
-                   @click.prevent="modalOpen = true"
-                   hx-get="{% url 'edit_shift_modal' shift.id %}"
-                   hx-target="#modal-container"
-                   hx-trigger="click"
-                   class="block h-full p-2 rounded text-sm hover:bg-opacity-75 transition-colors duration-150
+                <div class="h-full p-2 rounded text-sm hover:bg-opacity-75 transition-colors duration-150
                           bg-{{ shift.position.color }}-100 border-{{ shift.position.color }}-200 border">
-                    <div class="font-medium text-{{ shift.position.color }}-900 truncate">
-                        {{ shift.position.name }}
+                    <div class="flex justify-between">
+                        <a href="#" 
+                           @click.prevent="modalOpen = true"
+                           hx-get="{% url 'edit_shift_modal' shift.id %}"
+                           hx-target="#modal-container"
+                           hx-trigger="click"
+                           class="flex-1">
+                            <div class="font-medium text-{{ shift.position.color }}-900 truncate">
+                                {{ shift.position.name }}
+                            </div>
+                            <div class="text-xs text-{{ shift.position.color }}-800">
+                                {{ shift.start_time|time:"H:i" }} - {{ shift.end_time|time:"H:i" }}
+                            </div>
+                        </a>
                     </div>
-                    <div class="text-xs text-{{ shift.position.color }}-800">
-                        {{ shift.start_time|time:"H:i" }} - {{ shift.end_time|time:"H:i" }}
+                    <div class="flex justify-between items-center mt-1">
+                        <div class="text-xs text-{{ shift.position.color }}-700">
+                            {{ shift.volunteers.count }}/{{ shift.max_volunteers }}
+                        </div>
+                        <button type="button"
+                                hx-get="{% url 'assign_volunteers_modal' shift.id %}"
+                                hx-target="#modal-container"
+                                hx-swap="innerHTML"
+                                hx-trigger="click"
+                                @htmx:before-request="modalOpen = true"
+                                class="px-2 py-0.5 text-xs bg-{{ shift.position.color }}-400 text-{{ shift.position.color }}-900 hover:bg-{{ shift.position.color }}-500 rounded">
+                            Assign
+                        </button>
                     </div>
-                    <div class="text-xs text-{{ shift.position.color }}-700">
-                        {{ shift.volunteers.count }}/{{ shift.max_volunteers }}
-                    </div>
-                </a>
+                </div>
             </div>
             {% endfor %}
             {% endfor %}
