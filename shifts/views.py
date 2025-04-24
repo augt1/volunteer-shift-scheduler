@@ -53,7 +53,7 @@ def week_view(request):
 
     # Generate hour slots from 10am to 5am next day
     hour_slots = []
-    for hour in range(10, 24):  # 10am to 11:59pm
+    for hour in range(6, 24):  # 10am to 11:59pm
         hour_slots.append(time(hour, 0))
     for hour in range(0, 6):  # 12am to 5am next day
         hour_slots.append(time(hour, 0))
