@@ -1,7 +1,7 @@
 import multiprocessing
 
 # Gunicorn configuration file
-bind = "unix:/run/gunicorn.sock"
+bind = "unix:/run/gunicorn/gunicorn.sock"
 workers = multiprocessing.cpu_count() * 2 + 1
 worker_class = "gthread"
 threads = 2

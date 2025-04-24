@@ -13,7 +13,7 @@ class Command(BaseCommand):
         end_date = datetime(2025, 5, 5).date()
         
         event = Event.objects.create(
-            name='Comicdom Con Athens 2025',
+            name='Athens Rhythm Hop 2025',
             description='The biggest comics convention in Greece',
             start_date=start_date,
             end_date=end_date

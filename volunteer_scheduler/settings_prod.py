@@ -28,7 +28,7 @@ MEDIA_URL = '/media/'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'volunteer_scheduler',
+        'NAME': 'volunteer_db',
         'USER': 'volunteer_user',
         'PASSWORD': config('DB_PASSWORD'),
         'HOST': 'localhost',

@@ -40,3 +40,6 @@ env/
 .vscode/
 *.swp
 *.swo
+
+staticfiles/
+mediafiles/

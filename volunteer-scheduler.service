@@ -8,6 +8,8 @@ Group=www-data
 WorkingDirectory=/home/augustin/minion-scheduler
 Environment="DJANGO_SETTINGS_MODULE=volunteer_scheduler.settings_prod"
 Environment="PATH=/home/augustin/minion-scheduler/venv/bin"
+RuntimeDirectory=gunicorn
+RuntimeDirectoryMode=0775
 ExecStart=/home/augustin/minion-scheduler/venv/bin/gunicorn --config gunicorn_config.py volunteer_scheduler.wsgi:application
 
 [Install]
