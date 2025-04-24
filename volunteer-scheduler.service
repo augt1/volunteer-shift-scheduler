@@ -1,0 +1,14 @@
+[Unit]
+Description=Volunteer Scheduler Gunicorn daemon
+After=network.target
+
+[Service]
+User=augustin
+Group=www-data
+WorkingDirectory=/home/augustin/minion-scheduler
+Environment="DJANGO_SETTINGS_MODULE=volunteer_scheduler.settings_prod"
+Environment="PATH=/home/augustin/minion-scheduler/venv/bin"
+ExecStart=/home/augustin/minion-scheduler/venv/bin/gunicorn --config gunicorn_config.py volunteer_scheduler.wsgi:application
+
+[Install]
+WantedBy=multi-user.target
