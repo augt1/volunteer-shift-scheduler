@@ -3,6 +3,7 @@
 <div id="add-shift-modal" 
      x-show="modalOpen"
      @keydown.escape.window="modalOpen = false"
+     @closeModal.window="modalOpen = false"
      class="fixed inset-0 overflow-y-auto z-50"
      x-cloak>
     <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0"
@@ -13,11 +14,16 @@
 
         <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
             <form hx-post="{% url 'add_shift_modal' %}" 
-                  hx-target="#grid-container"
-                  hx-swap="innerHTML"
+                  hx-target="#add-shift-modal"
+                  hx-swap="outerHTML"
                   @htmx:after-on-load="modalOpen = false">
                 <input type="hidden" name="event" value="{{ event }}">
                 <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                    {% if error_message %}
+                    <div class="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+                        <p>{{ error_message }}</p>
+                    </div>
+                    {% endif %}
                     <div class="mb-4">
                         <label class="block text-gray-700 text-sm font-bold mb-2" for="position">
                             Position
