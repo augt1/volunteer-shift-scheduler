@@ -61,12 +61,28 @@
                             {% for volunteer in available_volunteers %}
                             <li class="py-2">
                                 <button type="button"
-                                        class="w-full text-left px-3 py-2 hover:bg-gray-100 text-sm"
+                                        class="w-full text-left px-3 py-2 hover:bg-gray-100 text-sm flex items-center justify-between group"
                                         hx-post="{% url 'assign_volunteers_modal' shift.id %}"
                                         hx-target="#modal-container"
                                         hx-swap="innerHTML"
                                         hx-vals='{"volunteer": "{{ volunteer.id }}", "source": "{{ source }}"}'>
-                                    {{ volunteer.first_name }} {{ volunteer.last_name }}
+                                    <div class="flex items-center">
+                                        <span>{{ volunteer.first_name }} {{ volunteer.last_name }}</span>
+                                        {% if volunteer.notes %}
+                                        <div class="relative ml-1 group">
+                                            <div class="w-4 h-4 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 text-xs cursor-help">
+                                                <span>i</span>
+                                            </div>
+                                            <div class="absolute z-10 hidden group-hover:block bg-white border border-gray-200 rounded-md shadow-lg p-2 w-48 text-xs left-0 bottom-full mb-1">
+                                                {{ volunteer.notes }}
+                                            </div>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="text-xs text-gray-500">
+                                        <span class="px-1.5 py-0.5 bg-gray-100 rounded-md">{{ volunteer.shift_count }} shifts</span>
+                                        <span class="px-1.5 py-0.5 bg-gray-100 rounded-md ml-1">{{ volunteer.total_hours }} hrs</span>
+                                    </div>
                                 </button>
                             </li>
                             {% endfor %}

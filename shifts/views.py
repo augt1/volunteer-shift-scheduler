@@ -193,6 +193,42 @@ def _process_shifts_for_day_view(shifts, hour_to_position):
     return shifts_by_location
 
 
+def _enhance_volunteers_with_stats(volunteers, event):
+    """
+    Enhance volunteer objects with shift count and total hours for a specific event.
+    """
+    for volunteer in volunteers:
+        # Get all shifts for this volunteer in this event
+        volunteer_shifts = ShiftVolunteer.objects.filter(
+            volunteer=volunteer,
+            shift__event=event
+        ).select_related('shift')
+        
+        # Calculate total shifts and hours
+        volunteer.shift_count = volunteer_shifts.count()
+        
+        total_hours = 0
+        for vs in volunteer_shifts:
+            # Calculate hours for each shift
+            start_time = vs.shift.start_time
+            end_time = vs.shift.end_time
+            
+            # Handle shifts that cross midnight
+            if end_time < start_time:
+                end_time_hours = end_time.hour + 24
+            else:
+                end_time_hours = end_time.hour
+                
+            hours = end_time_hours - start_time.hour
+            minutes = end_time.minute - start_time.minute
+            
+            total_hours += hours + (minutes / 60)
+            
+        volunteer.total_hours = round(total_hours, 1)
+    
+    return volunteers
+
+
 @login_required
 def week_view(request):
     # Get the current event
@@ -561,7 +597,9 @@ def assign_volunteers_modal(request, shift_id):
         )
         .order_by("first_name", "last_name")
     )
-
+    
+    available_volunteers = _enhance_volunteers_with_stats(available_volunteers, shift.event)
+    
     if request.method == "POST":
         # Try to get action and volunteer from POST data or HTMX vals
         action = request.POST.get("action", None)
@@ -683,7 +721,9 @@ def assign_volunteers_modal(request, shift_id):
             )
             .order_by("first_name", "last_name")
         )
-
+        
+        available_volunteers = _enhance_volunteers_with_stats(available_volunteers, shift.event)
+        
         # Return the updated modal with refreshed volunteer lists
         return render(
             request,
@@ -696,6 +736,7 @@ def assign_volunteers_modal(request, shift_id):
             },
         )
 
+    # Return the modal
     return render(
         request,
         "shifts/partials/assign_volunteers_modal.html",
