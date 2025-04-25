@@ -6,7 +6,8 @@
 {% block content %}
 <div x-data="{ modalOpen: false }"
      @keydown.escape.window="modalOpen = false"
-     @modal-closed.window="modalOpen = false">
+     @modal-closed.window="modalOpen = false"
+     @closeModal.window="modalOpen = false">
     <div class="container mx-auto px-4 py-8">
         <div class="text-center mb-6">
             <h1 class="text-3xl font-bold">{{ current_event.name }}</h1>

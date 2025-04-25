@@ -13,6 +13,7 @@ from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.html import strip_tags
+import json
 
 from events.models import Event
 from volunteers.models import Volunteer
@@ -529,6 +530,26 @@ def add_shift_modal(request):
 def assign_volunteers_modal(request, shift_id):
     shift = get_object_or_404(Shift, id=shift_id)
     volunteers = ShiftVolunteer.objects.filter(shift=shift).select_related("volunteer")
+    #TODO: modal doens refresh the week grid when closing
+    
+    # Get source from request parameters (GET, POST, or HTMX vals)
+    source = request.GET.get("source", None)
+    if not source and request.method == "POST":
+        # Try to get from POST data or HTMX vals
+        source = request.POST.get("source", None)
+        if not source and request.headers.get("HX-Trigger-Name") == "hx-vals":
+            # This is from hx-vals
+            try:
+                import json
+                body = json.loads(request.body.decode("utf-8"))
+                source = body.get("source", "day")
+            except:
+                source = "day"
+    
+    if not source:
+        source = "day"  # Default to day view
+    
+    print(f"Source: {source}")
 
     # Get volunteers who can work this position and aren't already assigned
     available_volunteers = (
@@ -538,42 +559,140 @@ def assign_volunteers_modal(request, shift_id):
                 "volunteer_id", flat=True
             )
         )
-        .order_by("last_name", "first_name")
+        .order_by("first_name", "last_name")
     )
 
     if request.method == "POST":
-        volunteer_id = request.POST.get("volunteer")
-        action = request.POST.get("action", "add")
+        # Try to get action and volunteer from POST data or HTMX vals
+        action = request.POST.get("action", None)
+        volunteer_ids = request.POST.getlist("volunteer")
+        
+        # If not in POST, try to get from HTMX vals
+        if (not action or not volunteer_ids) and request.headers.get("HX-Trigger-Name") == "hx-vals":
+            try:
+                import json
+                body = json.loads(request.body.decode("utf-8"))
+                action = body.get("action", "add")
+                volunteer_id = body.get("volunteer")
+                if volunteer_id:
+                    volunteer_ids = [volunteer_id]
+                else:
+                    volunteer_ids = []
+            except:
+                action = "add"
+                volunteer_ids = []
+        
+        if not action:
+            action = "add"  # Default action
 
-        if action == "remove":
+        if action == "remove" and volunteer_ids:
             # Remove volunteer from shift
             ShiftVolunteer.objects.filter(
-                shift=shift, volunteer_id=volunteer_id
+                shift=shift, volunteer_id=volunteer_ids[0]
             ).delete()
-        else:
-            # Add volunteer to shift if not already at max
-            if volunteers.count() < shift.max_volunteers:
-                volunteer = get_object_or_404(Volunteer, id=volunteer_id)
-                ShiftVolunteer.objects.create(
-                    shift=shift, volunteer=volunteer, assigned_by=request.user
+        elif action == "close":
+            # Return the updated grid based on the source
+            hour_slots = _generate_hour_slots()
+            hour_to_position = _get_hour_position_mapping(hour_slots)
+            
+            if source == "week":
+                # For week view
+                start_date = shift.date - timedelta(days=shift.date.weekday())
+                end_date = start_date + timedelta(days=6)
+                
+                # Get all dates in the week using event.get_dates()
+                event_dates = shift.event.get_dates()
+                # Filter to only include dates in the current week
+                event_dates = [date for date in event_dates if start_date <= date <= end_date]
+                
+                # Get shifts for the week
+                week_shifts = (
+                    Shift.objects.filter(
+                        event=shift.event, 
+                        date__gte=start_date, 
+                        date__lte=end_date
+                    )
+                    .select_related("position", "location")
+                    .prefetch_related("volunteers")
                 )
+                
+                # Process shifts by date
+                shifts_by_date = {}
+                for date in event_dates:
+                    day_shifts = week_shifts.filter(date=date)
+                    date_str = date.strftime('%Y-%m-%d')
+                    shifts_by_date[date_str] = _process_shifts_for_day_view(
+                        day_shifts, hour_to_position
+                    )
+                
+                # Return the updated grid
+                return render(
+                    request,
+                    "shifts/partials/day_columns.html",
+                    {
+                        "event_dates": event_dates,
+                        "shifts_by_date": shifts_by_date,
+                        "locations": Location.objects.filter(event=shift.event),
+                        "hour_slots": hour_slots,
+                        "current_event": shift.event,
+                        "selected_location": None,  # We're showing all locations
+                    },
+                )
+            else:
+                # For day view
+                # Get all shifts for the location view
+                shifts = (
+                    Shift.objects.filter(event=shift.event, date=shift.date)
+                    .select_related("position", "location")
+                    .prefetch_related("volunteers")
+                )
+                shifts_by_location = _process_shifts_for_day_view(shifts, hour_to_position)
+                
+                # Return the updated grid
+                return render(
+                    request,
+                    "shifts/partials/location_columns.html",
+                    {
+                        "shifts_by_location": shifts_by_location,
+                        "locations": Location.objects.filter(event=shift.event),
+                        "hour_slots": hour_slots,
+                        "current_event": shift.event,
+                        "current_date": shift.date,
+                    },
+                )
+        else:
+            # Add the volunteer to the shift if not already at max
+            if volunteers.count() < shift.max_volunteers and volunteer_ids:
+                volunteer_id = volunteer_ids[0]  # We're now handling one volunteer at a time
+                if volunteer_id:
+                    volunteer = get_object_or_404(Volunteer, id=volunteer_id)
+                    # Check if this volunteer is already assigned to avoid duplicates
+                    if not ShiftVolunteer.objects.filter(shift=shift, volunteer=volunteer).exists():
+                        ShiftVolunteer.objects.create(
+                            shift=shift, volunteer=volunteer, assigned_by=request.user
+                        )
 
-        # Return the updated grid
-        shifts = Shift.objects.filter(event=shift.event, date=shift.date)
-        shifts_by_location = _process_shifts_for_day_view(
-            shifts, _get_hour_position_mapping(_generate_hour_slots())
+        # Refresh the volunteer lists
+        volunteers = ShiftVolunteer.objects.filter(shift=shift).select_related("volunteer")
+        available_volunteers = (
+            Volunteer.objects.filter(available_positions=shift.position, is_active=True)
+            .exclude(
+                id__in=ShiftVolunteer.objects.filter(shift=shift).values_list(
+                    "volunteer_id", flat=True
+                )
+            )
+            .order_by("first_name", "last_name")
         )
 
-        hour_slots = _generate_hour_slots()
+        # Return the updated modal with refreshed volunteer lists
         return render(
             request,
-            "shifts/partials/day_columns.html",
+            "shifts/partials/assign_volunteers_modal.html",
             {
-                "shifts_by_location": shifts_by_location,
-                "locations": Location.objects.filter(event=shift.event),
-                "hour_slots": hour_slots,
-                "current_event": shift.event,
-                "current_date": shift.date,
+                "shift": shift,
+                "volunteers": volunteers,
+                "available_volunteers": available_volunteers,
+                "source": source,
             },
         )
 
@@ -584,6 +703,7 @@ def assign_volunteers_modal(request, shift_id):
             "shift": shift,
             "volunteers": volunteers,
             "available_volunteers": available_volunteers,
+            "source": source,
         },
     )
 
@@ -634,10 +754,10 @@ def edit_shift_modal(request, shift_id):
                 request,
                 "shifts/partials/day_columns.html",
                 {
-                    "shifts_by_date": shifts_by_date,
-                    "event_dates": event.get_dates(),
-                    "hour_slots": hour_slots,
                     "current_event": event,
+                    "event_dates": event.get_dates(),
+                    "shifts_by_date": shifts_by_date,
+                    "hour_slots": hour_slots,
                     "selected_location": location,
                 },
             )
@@ -649,9 +769,7 @@ def edit_shift_modal(request, shift_id):
             # Update the shift
             position = get_object_or_404(Position, id=request.POST.get("position"))
             location = get_object_or_404(Location, id=request.POST.get("location"))
-            start_time = datetime.strptime(
-                request.POST.get("start_time"), "%H:%M"
-            ).time()
+            start_time = datetime.strptime(request.POST.get("start_time"), "%H:%M").time()
             end_time = datetime.strptime(request.POST.get("end_time"), "%H:%M").time()
             max_volunteers = int(request.POST.get("max_volunteers", 1))
 

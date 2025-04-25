@@ -59,7 +59,7 @@
                         </div>
                         
                         <button type="button"
-                                hx-get="{% url 'assign_volunteers_modal' shift.id %}"
+                                hx-get="{% url 'assign_volunteers_modal' shift.id %}?source=week"
                                 hx-target="#modal-container"
                                 hx-swap="innerHTML"
                                 hx-trigger="click"
