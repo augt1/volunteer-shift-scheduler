@@ -18,7 +18,7 @@
                   hx-headers='{"X-HTTP-Method-Override": "PUT"}'
                   hx-target="#edit-shift-modal"
                   hx-swap="outerHTML"
-                  @htmx:after-on-load="modalOpen = false">
+                  @htmx:after-on-load="document.dispatchEvent(new CustomEvent('initializeAlpine'))">
                 <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                     {% if error_message %}
                     <div class="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">

@@ -536,6 +536,8 @@ def add_shift_modal(request):
                     },
                 )
                 response['HX-Trigger'] = json.dumps({"closeModal": True})
+                response['HX-Reswap'] = 'innerHTML'
+                response['HX-Retarget'] = '#grid-container'
                 return response
             else:
                 # Get all shifts for the week view
@@ -558,6 +560,8 @@ def add_shift_modal(request):
                     },
                 )
                 response['HX-Trigger'] = json.dumps({"closeModal": True})
+                response['HX-Reswap'] = 'innerHTML'
+                response['HX-Retarget'] = '#grid-container'
                 return response
         except ValidationError as e:
             # Format the error message
@@ -913,6 +917,8 @@ def edit_shift_modal(request, shift_id):
                         },
                     )
                     response['HX-Trigger'] = json.dumps({"closeModal": True})
+                    response['HX-Reswap'] = 'innerHTML'
+                    response['HX-Retarget'] = '#grid-container'
                     return response
                 else:
                     # Return updated grid
@@ -935,6 +941,8 @@ def edit_shift_modal(request, shift_id):
                         },
                     )
                     response['HX-Trigger'] = json.dumps({"closeModal": True})
+                    response['HX-Reswap'] = 'innerHTML'
+                    response['HX-Retarget'] = '#grid-container'
                     return response
             except ValidationError as e:
                 # Return the modal with the error message

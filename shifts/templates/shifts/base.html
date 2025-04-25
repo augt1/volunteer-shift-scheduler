@@ -23,6 +23,12 @@
         document.body.addEventListener('htmx:configRequest', function(evt) {
             evt.detail.headers['X-CSRFToken'] = document.querySelector('#csrf-form [name=csrfmiddlewaretoken]').value;
         });
+        
+        // Handle Alpine.js reinitialization after modal content is replaced
+        document.addEventListener('initializeAlpine', function() {
+            // This will force Alpine to re-evaluate the modal state
+            Alpine.initTree(document.body);
+        });
     </script>
     <!-- Navigation -->
     <nav class="bg-white shadow">

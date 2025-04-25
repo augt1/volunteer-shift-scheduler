@@ -16,7 +16,7 @@
             <form hx-post="{% url 'add_shift_modal' %}" 
                   hx-target="#add-shift-modal"
                   hx-swap="outerHTML"
-                  @htmx:after-on-load="modalOpen = false">
+                  @htmx:after-on-load="document.dispatchEvent(new CustomEvent('initializeAlpine'))">
                 <input type="hidden" name="event" value="{{ event }}">
                 <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                     {% if error_message %}
