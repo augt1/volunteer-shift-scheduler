@@ -30,6 +30,10 @@
                     <span class="text-gray-600">Unassigned Volunteers:</span>
                     <span class="font-semibold">{{ unassigned_volunteers }}</span>
                 </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-600">Confirmed Volunteers:</span>
+                    <span class="font-semibold">{{ confirmed_volunteers }}</span>
+                </div>
             </div>
         </div>
 
@@ -43,6 +47,10 @@
                     <p class="text-{{ position.color }}-600">
                         <span class="text-2xl font-bold">{{ position.volunteer_count }}</span>
                         <span class="text-sm ml-1">volunteers</span>
+                    </p>
+                    <p class="text-{{ position.color }}-600 mt-1">
+                        <span class="text-lg font-semibold">{{ position.confirmed_count }}</span>
+                        <span class="text-sm ml-1">confirmed</span>
                     </p>
                 </div>
                 {% endfor %}

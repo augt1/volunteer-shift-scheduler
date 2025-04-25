@@ -63,11 +63,13 @@ def volunteer_list(request):
     unassigned_volunteers = Volunteer.objects.filter(
         available_positions__isnull=True
     ).count()
+    confirmed_volunteers = Volunteer.objects.filter(has_confirmed=True).count()
 
     # Get position stats
     position_stats = Position.objects.annotate(
-        volunteer_count=Count("volunteers")
-    ).values("id", "name", "color", "volunteer_count")
+        volunteer_count=Count("volunteers"),
+        confirmed_count=Count("volunteers", filter=Q(volunteers__has_confirmed=True))
+    ).values("id", "name", "color", "volunteer_count", "confirmed_count")
 
     # Add annotations to filtered queryset
     volunteers = volunteers.annotate(
@@ -93,6 +95,7 @@ def volunteer_list(request):
             "active_volunteers": active_volunteers,
             "assigned_volunteers": assigned_volunteers,
             "unassigned_volunteers": unassigned_volunteers,
+            "confirmed_volunteers": confirmed_volunteers,
             "position_stats": position_stats,
             "positions": Position.objects.all(),
             "search_query": search_query,
