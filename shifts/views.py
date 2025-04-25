@@ -55,15 +55,14 @@ def _calculate_shift_grid_position(shift, hour_to_position):
     if end_hour < 6:
         end_hour += 24
 
-    # Calculate grid positions
-    shift.grid_row_start = hour_to_position[start_hour % 24] + 1
-
-    # Calculate span including partial hours
-    if end_minute > 0:
-        # Add an extra hour if there are minutes in the end time
-        shift.grid_row_span = (end_hour - start_hour) + (end_minute / 60)
-    else:
-        shift.grid_row_span = end_hour - start_hour
+    # Calculate grid positions with minute precision
+    base_row = hour_to_position[start_hour % 24]
+    # Add fractional position based on minutes (e.g., 30 minutes = 0.5 rows)
+    shift.grid_row_start = base_row + 1 + (start_minute / 60)
+    
+    # Calculate span including partial hours for both start and end
+    total_minutes = ((end_hour - start_hour) * 60) + (end_minute - start_minute)
+    shift.grid_row_span = total_minutes / 60
 
     return start_hour % 24
 
@@ -71,10 +70,10 @@ def _calculate_shift_grid_position(shift, hour_to_position):
 def _process_overlapping_shifts(shifts):
     """Process a list of shifts to detect overlaps and set column positions.
 
-    This implementation improves the layout of shifts by:
-    1. Sorting shifts by start time
-    2. Assigning columns more efficiently to avoid large gaps
-    3. Prioritizing better visual layout over strict time ordering
+    This implementation organizes shifts by position when they overlap:
+    1. Shifts of the same position are grouped together in the same column
+    2. Different positions get different columns when they overlap
+    3. Positions are consistently assigned to the same column when possible
     """
     if not shifts:
         return
@@ -82,11 +81,14 @@ def _process_overlapping_shifts(shifts):
     # First sort all shifts by start time
     all_shifts = sorted(shifts, key=lambda s: (s.start_time.hour, s.start_time.minute))
     
-    # Initialize column assignments and track maximum columns needed
+    # Create a mapping of position IDs to column numbers
+    position_to_column = {}
     max_columns = 0
     
-    # For each shift, find the first available column
+    # For each shift, try to assign it to its position's column if possible
     for shift in all_shifts:
+        position_id = shift.position.id
+        
         # Find all shifts that overlap with this one
         overlapping_shifts = [
             s for s in all_shifts 
@@ -95,17 +97,27 @@ def _process_overlapping_shifts(shifts):
             and hasattr(s, 'column')  # Only include shifts that already have a column assigned
         ]
         
-        # Find the first available column
+        # Get the columns used by overlapping shifts
         used_columns = set(s.column for s in overlapping_shifts)
-        column = 0
-        while column in used_columns:
-            column += 1
         
-        # Assign the column to this shift
-        shift.column = column
+        # If this position already has a column assigned and it's not used by any overlapping shift,
+        # use that column
+        if position_id in position_to_column and position_to_column[position_id] not in used_columns:
+            shift.column = position_to_column[position_id]
+        else:
+            # Otherwise, find the first available column
+            column = 0
+            while column in used_columns:
+                column += 1
+                
+            # Assign the column to this shift
+            shift.column = column
+            
+            # Update the position-to-column mapping
+            position_to_column[position_id] = column
         
         # Update the maximum number of columns needed
-        max_columns = max(max_columns, column + 1)
+        max_columns = max(max_columns, shift.column + 1)
     
     # Set the total columns for all shifts
     for shift in all_shifts:
