@@ -85,16 +85,21 @@ def _process_overlapping_shifts(shifts):
     position_to_column = {}
     max_columns = 0
     
+    # Assign column 0 to the first shift
+    if all_shifts:
+        all_shifts[0].column = 0
+        position_to_column[all_shifts[0].position.id] = 0
+        max_columns = 1
+    
     # For each shift, try to assign it to its position's column if possible
-    for shift in all_shifts:
+    for i, shift in enumerate(all_shifts[1:], 1):
         position_id = shift.position.id
         
         # Find all shifts that overlap with this one
         overlapping_shifts = [
-            s for s in all_shifts 
+            s for s in all_shifts[:i]  # Only consider shifts we've already processed
             if (s.start_time < shift.end_time and s.end_time > shift.start_time)
-            and s != shift  # Don't include the current shift
-            and hasattr(s, 'column')  # Only include shifts that already have a column assigned
+            or (s.start_time == shift.start_time)  # Explicitly check for same start time
         ]
         
         # Get the columns used by overlapping shifts
