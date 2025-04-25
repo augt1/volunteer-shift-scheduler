@@ -63,6 +63,7 @@
                                 hx-target="#modal-container"
                                 hx-swap="innerHTML"
                                 hx-trigger="click"
+                                @click.stop
                                 @htmx:before-request="modalOpen = true"
                                 class="px-1.5 py-0 text-xs bg-{{ shift.position.color }}-400 text-{{ shift.position.color }}-900 hover:bg-{{ shift.position.color }}-500 rounded">
                             Assign

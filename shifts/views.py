@@ -40,22 +40,30 @@ def _get_hour_position_mapping(hour_slots):
 def _calculate_shift_grid_position(shift, hour_to_position):
     """Calculate grid positioning for a single shift."""
     start_hour = shift.start_time.hour
-    end_hour = (
-        shift.end_time.hour
-        if shift.end_time > shift.start_time
-        else shift.end_time.hour + 24
-    )
-
+    start_minute = shift.start_time.minute
+    end_hour = shift.end_time.hour
+    end_minute = shift.end_time.minute
+    
+    # Handle shifts that cross midnight
+    if shift.end_time < shift.start_time:
+        end_hour += 24
+    
     # Adjust for grid starting at 6am
     if start_hour < 6:
         start_hour += 24
     if end_hour < 6:
         end_hour += 24
-
+    
     # Calculate grid positions
     shift.grid_row_start = hour_to_position[start_hour % 24] + 1
-    shift.grid_row_span = end_hour - start_hour
-
+    
+    # Calculate span including partial hours
+    if end_minute > 0:
+        # Add an extra hour if there are minutes in the end time
+        shift.grid_row_span = (end_hour - start_hour) + (end_minute / 60)
+    else:
+        shift.grid_row_span = end_hour - start_hour
+    
     return start_hour % 24
 
 
@@ -68,43 +76,62 @@ def _process_overlapping_shifts(shifts):
     Returns:
         None (shifts are modified in place)
     """
+    if not shifts:
+        return
+        
+    # Convert time objects to comparable values for overlap detection
+    def get_comparable_times(shift):
+        # Get the date from the shift
+        shift_date = shift.date.date() if hasattr(shift.date, 'date') else shift.date
+        
+        # Create datetime objects for start and end
+        start_dt = datetime.combine(shift_date, shift.start_time)
+        end_dt = datetime.combine(shift_date, shift.end_time)
+        
+        # If end time is earlier than start time, it means the shift crosses midnight
+        if shift.end_time < shift.start_time:
+            end_dt += timedelta(days=1)
+            
+        return start_dt, end_dt
+    
+    # Create a list of shifts with their comparable times
+    shifts_with_times = [(shift, *get_comparable_times(shift)) for shift in shifts]
+    
+    # Sort shifts by start time
+    shifts_with_times.sort(key=lambda x: x[1])  # Sort by start_dt
+    
     # Group overlapping shifts
-    shift_groups = []  # List of lists of overlapping shifts
-
-    # Sort shifts by start time to process them in chronological order
-    sorted_shifts = sorted(shifts, key=lambda s: s.start_time)
-
-    for shift in sorted_shifts:
-        # Find overlapping group or create new one
+    shift_groups = []
+    
+    for shift, start_dt, end_dt in shifts_with_times:
+        # Try to find an existing group that this shift overlaps with
         added_to_group = False
-
+        
         for group in shift_groups:
             # Check if this shift overlaps with any shift in the group
             overlaps = False
-            for existing_shift in group:
+            
+            for group_shift, group_start_dt, group_end_dt in group:
                 # Two shifts overlap if one starts before the other ends
-                if (
-                    shift.start_time < existing_shift.end_time
-                    and shift.end_time > existing_shift.start_time
-                ):
+                if start_dt < group_end_dt and end_dt > group_start_dt:
                     overlaps = True
                     break
-
+            
             if overlaps:
-                group.append(shift)
+                group.append((shift, start_dt, end_dt))
                 added_to_group = True
-                # Update all shifts in this group to have same total_columns
-                total_columns = len(group)
-                for idx, s in enumerate(group):
-                    s.column = idx
-                    s.total_columns = total_columns
                 break
-
+        
         if not added_to_group:
-            # Create new group for this shift
-            shift_groups.append([shift])
-            shift.column = 0
-            shift.total_columns = 1
+            # Create a new group for this shift
+            shift_groups.append([(shift, start_dt, end_dt)])
+    
+    # Update shift column information
+    for group in shift_groups:
+        total_columns = len(group)
+        for idx, (shift, _, _) in enumerate(group):
+            shift.column = idx
+            shift.total_columns = total_columns
 
 
 def _process_shifts_for_week_view(shifts, hour_to_position):
@@ -122,6 +149,8 @@ def _process_shifts_for_week_view(shifts, hour_to_position):
     for shift in shifts:
         # Convert date to datetime.date for consistent key lookup
         shift_date = shift.date.date() if hasattr(shift.date, "date") else shift.date
+        
+        # Always add the shift to its start date, even if it crosses midnight
         shifts_by_date_dict[shift_date].append(shift)
 
     # Process each date's shifts separately
@@ -169,6 +198,7 @@ def _process_shifts_for_day_view(shifts, hour_to_position):
     # First, organize shifts by location
     location_shifts_dict = defaultdict(list)
     for shift in shifts:
+        # For shifts that cross midnight, we still want them to appear in their start day
         location_shifts_dict[shift.location].append(shift)
 
     # Then process each location's shifts
