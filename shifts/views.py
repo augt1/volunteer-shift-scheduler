@@ -49,7 +49,7 @@ def _calculate_shift_grid_position(shift, hour_to_position):
     # Adjust for grid starting at 6am
     if start_hour < 6:
         start_hour += 24
-    if end_hour < 5:
+    if end_hour < 6:
         end_hour += 24
 
     # Calculate grid positions
