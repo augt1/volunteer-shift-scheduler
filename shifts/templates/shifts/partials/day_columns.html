@@ -29,13 +29,8 @@
             <div class="absolute px-0.5 group"
                  style="top: calc({{ shift.grid_row_start|add:"-1" }} * 3rem);
                         height: calc({{ shift.grid_row_span }} * 3rem - 2px);
-                        {% if shift.total_columns > 1 %}
                         left: calc({{ shift.column }} * (100% / {{ shift.total_columns }}));
-                        width: calc(100% / {{ shift.total_columns }} - 2px);
-                        {% else %}
-                        left: 0;
-                        right: 0;
-                        {% endif %}">
+                        width: calc(100% / {{ shift.total_columns }} - 2px);">
                 <div class="h-full p-1 rounded text-xs transition-all duration-200 
                           {% if shift.volunteers.count == shift.max_volunteers %}
                           bg-{{ shift.position.color }}-200 border-{{ shift.position.color }}-300 border
