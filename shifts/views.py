@@ -932,7 +932,7 @@ def send_shift_notifications(request, event, volunteers=None):
             send_mail(
                 subject=f"Your Shifts at {event.name}",
                 message=plain_message,
-                from_email=settings.DEFAULT_FROM_EMAIL,
+                from_email=f"Athens Rhythm Hop <{settings.EMAIL_HOST_USER}>",
                 recipient_list=[volunteer.email],
                 html_message=html_message,
                 fail_silently=False,

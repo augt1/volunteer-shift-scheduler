@@ -2,7 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils import timezone
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_protect
 from django.urls import reverse
@@ -121,9 +121,14 @@ def volunteer_update(request, pk):
 @login_required
 def volunteer_delete(request, pk):
     volunteer = get_object_or_404(Volunteer, pk=pk)
-    if request.method == 'POST':
+    if request.method == 'POST' or request.method == 'DELETE':
         volunteer.delete()
         messages.success(request, 'Volunteer deleted successfully.')
+        
+        # If it's an HTMX request, return an empty response to remove the row
+        if request.headers.get('HX-Request'):
+            return HttpResponse('')
+        
         return redirect('volunteer_list')
     
     return render(request, 'volunteers/volunteer_confirm_delete.html', {
