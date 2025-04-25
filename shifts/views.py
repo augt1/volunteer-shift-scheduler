@@ -60,33 +60,35 @@ def _calculate_shift_grid_position(shift, hour_to_position):
 
 def _process_overlapping_shifts(shifts):
     """Process a list of shifts to detect overlaps and set column positions.
-    
+
     Args:
         shifts: List of shifts to process
-        
+
     Returns:
         None (shifts are modified in place)
     """
     # Group overlapping shifts
     shift_groups = []  # List of lists of overlapping shifts
-    
+
     # Sort shifts by start time to process them in chronological order
     sorted_shifts = sorted(shifts, key=lambda s: s.start_time)
-    
+
     for shift in sorted_shifts:
         # Find overlapping group or create new one
         added_to_group = False
-        
+
         for group in shift_groups:
             # Check if this shift overlaps with any shift in the group
             overlaps = False
             for existing_shift in group:
                 # Two shifts overlap if one starts before the other ends
-                if (shift.start_time < existing_shift.end_time and 
-                    shift.end_time > existing_shift.start_time):
+                if (
+                    shift.start_time < existing_shift.end_time
+                    and shift.end_time > existing_shift.start_time
+                ):
                     overlaps = True
                     break
-            
+
             if overlaps:
                 group.append(shift)
                 added_to_group = True
@@ -96,7 +98,7 @@ def _process_overlapping_shifts(shifts):
                     s.column = idx
                     s.total_columns = total_columns
                 break
-        
+
         if not added_to_group:
             # Create new group for this shift
             shift_groups.append([shift])
@@ -127,26 +129,26 @@ def _process_shifts_for_week_view(shifts, hour_to_position):
         # Calculate grid positions for all shifts on this date
         for shift in date_shifts:
             _calculate_shift_grid_position(shift, hour_to_position)
-        
+
         # Process overlapping shifts for this date
         _process_overlapping_shifts(date_shifts)
-        
+
         # Organize shifts by hour for template rendering
         shifts_by_hour = defaultdict(list)
         for shift in date_shifts:
             # Convert start_hour to time object for template rendering
             hour_time = time(shift.start_time.hour, 0)
             shifts_by_hour[hour_time].append(shift)
-        
+
         # Convert hour keys to string format for template
         hour_shifts_str = {}
         for hour_key, hour_shifts in shifts_by_hour.items():
             hour_str = hour_key.strftime("%H:%M")
             hour_shifts_str[hour_str] = hour_shifts
-        
+
         # Add to result with date as string key
         result[date.isoformat()] = hour_shifts_str
-    
+
     return result
 
 
@@ -173,17 +175,17 @@ def _process_shifts_for_day_view(shifts, hour_to_position):
         # Calculate grid positions for all shifts at this location
         for shift in location_shifts:
             _calculate_shift_grid_position(shift, hour_to_position)
-        
+
         # Process overlapping shifts for this location
         _process_overlapping_shifts(location_shifts)
-        
+
         # Organize shifts by hour for template rendering
         shifts_by_hour = defaultdict(list)
         for shift in location_shifts:
             # Convert hour to string format for template
             hour_str = shift.start_time.strftime("%H:%M")
             shifts_by_hour[hour_str].append(shift)
-        
+
         # Store the processed shifts with the location as key
         shifts_by_location[location] = dict(shifts_by_hour)
 

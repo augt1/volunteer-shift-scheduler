@@ -1,9 +1,9 @@
  <!-- Locations grid -->
 {% load shift_tags %}
-<div id="grid-container" class="flex gap-4">
+<div id="grid-container" class="flex gap-2">
     {% for location in locations %}
     <div class="bg-white rounded-lg shadow overflow-hidden w-64 flex-none">
-        <div class="sticky top-0 text-center p-4 bg-gray-50 border-b h-[72px] z-10">
+        <div class="sticky top-0 text-center p-2 bg-gray-50 border-b h-[72px] z-10">
             <div class="font-bold">{{ location.name }}</div>
         </div>
         
@@ -22,52 +22,63 @@
             {% with location_shifts=shifts_by_location|get_item:location %}
             {% for hour_str, shifts in location_shifts.items %}
             {% for shift in shifts %}
-            <div class="absolute px-1"
+            <div class="absolute px-0.5 group"
                  style="top: calc({{ shift.grid_row_start|add:"-1" }} * 3rem);
                         height: calc({{ shift.grid_row_span }} * 3rem - 2px);
                         {% if shift.total_columns %}
                         left: calc({{ shift.column }} * (100% / {{ shift.total_columns }}));
-                        width: calc(100% / {{ shift.total_columns }});
+                        width: calc(100% / {{ shift.total_columns }} - 2px);
                         {% else %}
                         left: 0;
                         right: 0;
                         {% endif %}">
-                <div class="h-full p-2 rounded text-sm hover:bg-opacity-75 transition-colors duration-150
-                          bg-{{ shift.position.color }}-100 border-{{ shift.position.color }}-200 border">
-                    <div class="flex justify-between">
-                        <a href="#" 
-                           @click.prevent="modalOpen = true"
-                           hx-get="{% url 'edit_shift_modal' shift.id %}"
-                           hx-target="#modal-container"
-                           hx-trigger="click"
-                           class="flex-1">
-                            <div class="font-medium text-{{ shift.position.color }}-900 truncate">
+                <div class="h-full p-1 rounded text-xs transition-all duration-200 
+                          {% if shift.volunteers.count == shift.max_volunteers %}
+                          bg-{{ shift.position.color }}-200 border-{{ shift.position.color }}-300 border
+                          group-hover:bg-{{ shift.position.color }}-100
+                          {% else %}
+                          bg-{{ shift.position.color }}-100 border-{{ shift.position.color }}-200 border
+                          group-hover:bg-{{ shift.position.color }}-50
+                          {% endif %}
+                          overflow-hidden relative
+                          group-hover:z-50 group-hover:shadow-xl 
+                          group-hover:absolute group-hover:h-auto group-hover:min-h-full group-hover:left-0 group-hover:right-0 group-hover:width-auto">
+                    <div class="flex justify-between items-center">
+                        <div class="font-medium text-{{ shift.position.color }}-900 truncate flex-1">
+                            <a href="#" 
+                               @click.prevent="modalOpen = true"
+                               hx-get="{% url 'edit_shift_modal' shift.id %}"
+                               hx-target="#modal-container"
+                               hx-trigger="click">
                                 {{ shift.position.name }}
-                            </div>
-                            <div class="text-xs text-{{ shift.position.color }}-800">
-                                {{ shift.start_time|time:"H:i" }} - {{ shift.end_time|time:"H:i" }}
-                            </div>
-                        </a>
-                    </div>
-                    <div class="flex justify-between items-center mt-1">
-                        <div class="text-xs text-{{ shift.position.color }}-700">
-                            {{ shift.volunteers.count }}/{{ shift.max_volunteers }}
+                            </a>
                         </div>
+                        
                         <button type="button"
                                 hx-get="{% url 'assign_volunteers_modal' shift.id %}"
                                 hx-target="#modal-container"
                                 hx-swap="innerHTML"
                                 hx-trigger="click"
                                 @htmx:before-request="modalOpen = true"
-                                class="px-2 py-0.5 text-xs bg-{{ shift.position.color }}-400 text-{{ shift.position.color }}-900 hover:bg-{{ shift.position.color }}-500 rounded">
+                                class="px-1.5 py-0 text-xs bg-{{ shift.position.color }}-400 text-{{ shift.position.color }}-900 hover:bg-{{ shift.position.color }}-500 rounded">
                             Assign
                         </button>
                     </div>
+                    
+                    <div class="flex justify-between items-center mt-0.5 text-xs">
+                        <div class="text-{{ shift.position.color }}-800">
+                            {{ shift.start_time|time:"H:i" }} - {{ shift.end_time|time:"H:i" }}
+                        </div>
+                        <div class="px-1 py-0 rounded {% if shift.volunteers.count == shift.max_volunteers %}bg-{{ shift.position.color }}-400 text-{{ shift.position.color }}-900 font-medium{% else %}bg-gray-100 text-gray-700{% endif %}">
+                            {{ shift.volunteers.count }}/{{ shift.max_volunteers }}
+                        </div>
+                    </div>
+                    
                     <!-- Display volunteers assigned to this shift -->
                     {% if shift.volunteers.all %}
-                    <div class="mt-1 pt-1 border-t border-{{ shift.position.color }}-200">
+                    <div class="mt-0.5 pt-0.5 border-t border-{{ shift.position.color }}-200 {% if shift.grid_row_span < 2 %}opacity-0 group-hover:opacity-100{% endif %}">
                         <div class="text-xs text-{{ shift.position.color }}-800 font-medium">Volunteers:</div>
-                        <ul class="text-xs text-{{ shift.position.color }}-700 mt-0.5 max-h-20 overflow-y-auto">
+                        <ul class="text-xs text-{{ shift.position.color }}-700 mt-0.5 max-h-32 overflow-y-auto">
                             {% for volunteer in shift.volunteers.all %}
                             <li class="truncate">{{ volunteer.get_full_name }}</li>
                             {% endfor %}
