@@ -69,69 +69,59 @@ def _calculate_shift_grid_position(shift, hour_to_position):
 
 def _process_overlapping_shifts(shifts):
     """Process a list of shifts to detect overlaps and set column positions.
-
-    Args:
-        shifts: List of shifts to process
-
-    Returns:
-        None (shifts are modified in place)
+    
+    This implementation places shifts at their starting hour and handles overlaps
+    by placing later-starting shifts to the right of earlier ones.
     """
     if not shifts:
         return
-        
-    # Convert time objects to comparable values for overlap detection
-    def get_comparable_times(shift):
-        # Get the date from the shift
-        shift_date = shift.date.date() if hasattr(shift.date, 'date') else shift.date
-        
-        # Create datetime objects for start and end
-        start_dt = datetime.combine(shift_date, shift.start_time)
-        end_dt = datetime.combine(shift_date, shift.end_time)
-        
-        # If end time is earlier than start time, it means the shift crosses midnight
-        if shift.end_time < shift.start_time:
-            end_dt += timedelta(days=1)
-            
-        return start_dt, end_dt
     
-    # Create a list of shifts with their comparable times
-    shifts_with_times = [(shift, *get_comparable_times(shift)) for shift in shifts]
+    # Group shifts by their starting hour
+    shifts_by_start_hour = {}
+    for shift in shifts:
+        start_hour = shift.start_time.hour
+        if start_hour not in shifts_by_start_hour:
+            shifts_by_start_hour[start_hour] = []
+        shifts_by_start_hour[start_hour].append(shift)
     
-    # Sort shifts by start time
-    shifts_with_times.sort(key=lambda x: x[1])  # Sort by start_dt
-    
-    # Group overlapping shifts
-    shift_groups = []
-    
-    for shift, start_dt, end_dt in shifts_with_times:
-        # Try to find an existing group that this shift overlaps with
-        added_to_group = False
+    # Process each starting hour group separately
+    for start_hour, hour_shifts in shifts_by_start_hour.items():
+        # Sort shifts by start time (for shifts starting in the same hour)
+        hour_shifts.sort(key=lambda s: s.start_time.minute)
         
-        for group in shift_groups:
-            # Check if this shift overlaps with any shift in the group
-            overlaps = False
-            
-            for group_shift, group_start_dt, group_end_dt in group:
-                # Two shifts overlap if one starts before the other ends
-                if start_dt < group_end_dt and end_dt > group_start_dt:
-                    overlaps = True
-                    break
-            
-            if overlaps:
-                group.append((shift, start_dt, end_dt))
-                added_to_group = True
-                break
-        
-        if not added_to_group:
-            # Create a new group for this shift
-            shift_groups.append([(shift, start_dt, end_dt)])
-    
-    # Update shift column information
-    for group in shift_groups:
-        total_columns = len(group)
-        for idx, (shift, _, _) in enumerate(group):
+        # Set column positions for shifts in this hour
+        for idx, shift in enumerate(hour_shifts):
             shift.column = idx
-            shift.total_columns = total_columns
+            shift.total_columns = len(hour_shifts)
+    
+    # Now find overlapping shifts across different starting hours
+    # and adjust their column positions
+    all_shifts = sorted(shifts, key=lambda s: (s.start_time.hour, s.start_time.minute))
+    
+    # Track active shifts (shifts that are still ongoing)
+    active_shifts = []
+    
+    for shift in all_shifts:
+        # Remove shifts that end before this one starts
+        active_shifts = [s for s in active_shifts if s.end_time > shift.start_time]
+        
+        # If there are active shifts that overlap with this one,
+        # place this shift in the next available column
+        if active_shifts:
+            # Find the maximum column used by active shifts
+            max_column = max(s.column for s in active_shifts)
+            
+            # Place this shift in the next column
+            shift.column = max_column + 1
+            
+            # Update total columns for all active shifts and this shift
+            new_total = max(shift.column + 1, max(s.total_columns for s in active_shifts))
+            for s in active_shifts:
+                s.total_columns = new_total
+            shift.total_columns = new_total
+        
+        # Add this shift to active shifts
+        active_shifts.append(shift)
 
 
 def _process_shifts_for_week_view(shifts, hour_to_position):
