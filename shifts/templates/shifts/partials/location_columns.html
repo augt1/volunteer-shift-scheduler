@@ -1,8 +1,8 @@
  <!-- Locations grid -->
 {% load shift_tags %}
-<div id="grid-container" class="grid grid-cols-{{ locations|length }} gap-4">
+<div id="grid-container" class="flex gap-4">
     {% for location in locations %}
-    <div class="bg-white rounded-lg shadow overflow-hidden">
+    <div class="bg-white rounded-lg shadow overflow-hidden w-64 flex-none">
         <div class="sticky top-0 text-center p-4 bg-gray-50 border-b h-[72px] z-10">
             <div class="font-bold">{{ location.name }}</div>
         </div>
@@ -20,7 +20,7 @@
             
             <!-- Shifts as absolute positioned elements -->
             {% with location_shifts=shifts_by_location|get_item:location %}
-            {% for hour, shifts in location_shifts.items %}
+            {% for hour_str, shifts in location_shifts.items %}
             {% for shift in shifts %}
             <div class="absolute px-1"
                  style="top: calc({{ shift.grid_row_start|add:"-1" }} * 3rem);
@@ -63,6 +63,17 @@
                             Assign
                         </button>
                     </div>
+                    <!-- Display volunteers assigned to this shift -->
+                    {% if shift.volunteers.all %}
+                    <div class="mt-1 pt-1 border-t border-{{ shift.position.color }}-200">
+                        <div class="text-xs text-{{ shift.position.color }}-800 font-medium">Volunteers:</div>
+                        <ul class="text-xs text-{{ shift.position.color }}-700 mt-0.5 max-h-20 overflow-y-auto">
+                            {% for volunteer in shift.volunteers.all %}
+                            <li class="truncate">{{ volunteer.get_full_name }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
             {% endfor %}

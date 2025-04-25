@@ -48,6 +48,7 @@
                 <div class="h-[72px] bg-white"></div> <!-- Header space -->
                 <div class="grid grid-cols-1" style="grid-template-rows: repeat({{ hour_slots|length }}, minmax(3rem, auto));">
                     {% for hour in hour_slots %}
+
                     <div class="p-2 {% if hour.hour < 5 %}bg-gray-50{% endif %} border-b border-r border-gray-100">
                         <div class="text-xs font-medium text-gray-500">{{ hour|time:"H:i" }}</div>
                     </div>
@@ -56,7 +57,7 @@
             </div>
 
             <!-- Days grid -->
-            <div id="grid-container" class="flex-1">
+            <div id="grid-container" class="flex-1 gap-4">
                 {% include "shifts/partials/day_columns.html" %}
             </div>
         </div>

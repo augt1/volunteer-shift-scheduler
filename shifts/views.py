@@ -3,22 +3,191 @@ from datetime import datetime, time, timedelta
 from itertools import groupby
 from operator import attrgetter
 
+from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.core.mail import send_mail
-from django.template.loader import render_to_string
-from django.utils.html import strip_tags
-from django.conf import settings
-from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
+from django.http import HttpRequest, HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.utils import timezone
+from django.template.loader import render_to_string
 from django.urls import reverse
-from django.http import HttpRequest
+from django.utils import timezone
+from django.utils.html import strip_tags
 
 from events.models import Event
 from volunteers.models import Volunteer
 
 from .models import Location, Position, PositionVolunteer, Shift, ShiftVolunteer
+
+
+def _generate_hour_slots(hour_start=6, hour_end=5):
+    """Generate hour slots from 6am to 5am next day."""
+    hour_slots = []
+    for hour in range(hour_start, 24):  # 6am to 11:59pm
+        hour_slots.append(time(hour, 0))
+    for hour in range(0, hour_end):  # 12am to 5am next day
+        hour_slots.append(time(hour, 0))
+
+    return hour_slots
+
+
+def _get_hour_position_mapping(hour_slots):
+    """Create a mapping of hours to their position in the grid."""
+    return {slot.hour: idx for idx, slot in enumerate(hour_slots)}
+
+
+def _calculate_shift_grid_position(shift, hour_to_position):
+    """Calculate grid positioning for a single shift."""
+    start_hour = shift.start_time.hour
+    end_hour = (
+        shift.end_time.hour
+        if shift.end_time > shift.start_time
+        else shift.end_time.hour + 24
+    )
+
+    # Adjust for grid starting at 6am
+    if start_hour < 6:
+        start_hour += 24
+    if end_hour < 5:
+        end_hour += 24
+
+    # Calculate grid positions
+    shift.grid_row_start = hour_to_position[start_hour % 24] + 1
+    shift.grid_row_span = end_hour - start_hour
+
+    return start_hour % 24
+
+
+def _process_overlapping_shifts(shifts):
+    """Process a list of shifts to detect overlaps and set column positions.
+    
+    Args:
+        shifts: List of shifts to process
+        
+    Returns:
+        None (shifts are modified in place)
+    """
+    # Group overlapping shifts
+    shift_groups = []  # List of lists of overlapping shifts
+    
+    # Sort shifts by start time to process them in chronological order
+    sorted_shifts = sorted(shifts, key=lambda s: s.start_time)
+    
+    for shift in sorted_shifts:
+        # Find overlapping group or create new one
+        added_to_group = False
+        
+        for group in shift_groups:
+            # Check if this shift overlaps with any shift in the group
+            overlaps = False
+            for existing_shift in group:
+                # Two shifts overlap if one starts before the other ends
+                if (shift.start_time < existing_shift.end_time and 
+                    shift.end_time > existing_shift.start_time):
+                    overlaps = True
+                    break
+            
+            if overlaps:
+                group.append(shift)
+                added_to_group = True
+                # Update all shifts in this group to have same total_columns
+                total_columns = len(group)
+                for idx, s in enumerate(group):
+                    s.column = idx
+                    s.total_columns = total_columns
+                break
+        
+        if not added_to_group:
+            # Create new group for this shift
+            shift_groups.append([shift])
+            shift.column = 0
+            shift.total_columns = 1
+
+
+def _process_shifts_for_week_view(shifts, hour_to_position):
+    """Process shifts and calculate their grid positions.
+
+    Args:
+        shifts: QuerySet of shifts to process
+        hour_to_position: Mapping of hours to grid positions
+
+    Returns:
+        shifts_by_date: Dictionary of shifts organized by date and hour
+    """
+    # First, organize shifts by date
+    shifts_by_date_dict = defaultdict(list)
+    for shift in shifts:
+        # Convert date to datetime.date for consistent key lookup
+        shift_date = shift.date.date() if hasattr(shift.date, "date") else shift.date
+        shifts_by_date_dict[shift_date].append(shift)
+
+    # Process each date's shifts separately
+    result = {}
+    for date, date_shifts in shifts_by_date_dict.items():
+        # Calculate grid positions for all shifts on this date
+        for shift in date_shifts:
+            _calculate_shift_grid_position(shift, hour_to_position)
+        
+        # Process overlapping shifts for this date
+        _process_overlapping_shifts(date_shifts)
+        
+        # Organize shifts by hour for template rendering
+        shifts_by_hour = defaultdict(list)
+        for shift in date_shifts:
+            # Convert start_hour to time object for template rendering
+            hour_time = time(shift.start_time.hour, 0)
+            shifts_by_hour[hour_time].append(shift)
+        
+        # Convert hour keys to string format for template
+        hour_shifts_str = {}
+        for hour_key, hour_shifts in shifts_by_hour.items():
+            hour_str = hour_key.strftime("%H:%M")
+            hour_shifts_str[hour_str] = hour_shifts
+        
+        # Add to result with date as string key
+        result[date.isoformat()] = hour_shifts_str
+    
+    return result
+
+
+def _process_shifts_for_day_view(shifts, hour_to_position):
+    """Process shifts for day view, organizing them by location.
+
+    Args:
+        shifts: QuerySet of shifts to process
+        hour_to_position: Mapping of hours to grid positions
+
+    Returns:
+        shifts_by_location: Dictionary of shifts organized by location and hour
+    """
+    # Create a dictionary with location objects as keys and shifts organized by hour as values
+    shifts_by_location = {}
+
+    # First, organize shifts by location
+    location_shifts_dict = defaultdict(list)
+    for shift in shifts:
+        location_shifts_dict[shift.location].append(shift)
+
+    # Then process each location's shifts
+    for location, location_shifts in location_shifts_dict.items():
+        # Calculate grid positions for all shifts at this location
+        for shift in location_shifts:
+            _calculate_shift_grid_position(shift, hour_to_position)
+        
+        # Process overlapping shifts for this location
+        _process_overlapping_shifts(location_shifts)
+        
+        # Organize shifts by hour for template rendering
+        shifts_by_hour = defaultdict(list)
+        for shift in location_shifts:
+            # Convert hour to string format for template
+            hour_str = shift.start_time.strftime("%H:%M")
+            shifts_by_hour[hour_str].append(shift)
+        
+        # Store the processed shifts with the location as key
+        shifts_by_location[location] = dict(shifts_by_hour)
+
+    return shifts_by_location
 
 
 @login_required
@@ -51,98 +220,21 @@ def week_view(request):
     else:
         selected_location = locations.first()
 
-    # Generate hour slots from 10am to 5am next day
-    hour_slots = []
-    for hour in range(6, 24):  # 10am to 11:59pm
-        hour_slots.append(time(hour, 0))
-    for hour in range(0, 6):  # 12am to 5am next day
-        hour_slots.append(time(hour, 0))
+    hour_slots = _generate_hour_slots()
+    hour_to_position = _get_hour_position_mapping(hour_slots)
 
-    # Create a mapping of hours to their position in the grid
-    hour_to_position = {slot: idx for idx, slot in enumerate(hour_slots)}
-
-    # Get all shifts for the selected location
+    # Get all shifts for the selected location with improved prefetching
     shifts = (
         Shift.objects.filter(event=current_event, location=selected_location)
-        .select_related("position")
-        .prefetch_related("volunteers")
+        .select_related("position", "location")
+        .prefetch_related(
+            "volunteers",
+            "shiftvolunteer_set",
+            "shiftvolunteer_set__volunteer",
+        )
     )
 
-    # Organize shifts by date and calculate their grid positions
-    shifts_by_date = {}
-    for date in event_dates:
-        date_shifts = shifts.filter(date=date)
-        shifts_by_hour = {slot: [] for slot in hour_slots}
-
-        # Group shifts by their time ranges to handle overlaps
-        shift_groups = []  # List of lists of overlapping shifts
-
-        for shift in date_shifts:
-            # Handle shifts that span to next day
-            shift_start = shift.start_time
-            if shift_start.hour < 5:  # If shift starts between 12am-5am
-                # It belongs to previous day's schedule
-                shift_date = date - timedelta(days=1)
-            else:
-                shift_date = date
-
-            if shift_date == date:
-                # Find the start position
-                start_hour = time(shift_start.hour, 0)
-                if start_hour in hour_to_position:
-                    start_pos = hour_to_position[start_hour]
-
-                    # Calculate end position and row span
-                    end_hour = shift.end_time.hour
-                    if end_hour < 5:  # If ends next day before 5am
-                        end_hour += 24
-                    elif end_hour < 10:  # If ends next day after 5am
-                        end_hour = 29  # 5am position
-
-                    # Calculate how many hour slots this shift spans
-                    if shift_start.hour < 5:
-                        start_hour_24 = shift_start.hour + 24
-                    else:
-                        start_hour_24 = shift_start.hour
-                    row_span = end_hour - start_hour_24
-
-                    # Add shift with its position info
-                    shift.grid_row_start = start_pos + 1  # 1-based for CSS grid
-                    shift.grid_row_span = max(1, row_span)  # Ensure at least 1
-
-                    # Find overlapping group or create new one
-                    added_to_group = False
-                    for group in shift_groups:
-                        # Check if this shift overlaps with any shift in the group
-                        overlaps = False
-                        for existing_shift in group:
-                            if (
-                                shift_start < existing_shift.end_time
-                                and shift.end_time > existing_shift.start_time
-                            ):
-                                overlaps = True
-                                break
-
-                        if overlaps:
-                            group.append(shift)
-                            added_to_group = True
-                            # Update all shifts in this group to have same total_columns
-                            total_columns = len(group)
-                            for idx, s in enumerate(group):
-                                s.column = idx  # Distribute shifts across columns
-                                s.total_columns = total_columns
-                            break
-
-                    if not added_to_group:
-                        # Create new group for this shift
-                        shift_groups.append([shift])
-                        shift.column = 0
-                        shift.total_columns = 1
-
-                    shifts_by_hour[start_hour].append(shift)
-
-        # No need for additional column calculation since we do it during group assignment
-        shifts_by_date[date] = shifts_by_hour
+    shifts_by_date = _process_shifts_for_week_view(shifts, hour_to_position)
 
     return render(
         request,
@@ -175,100 +267,25 @@ def location_day_view(request, year, month, day):
     show_next = next_day <= current_event.end_date
     show_prev = prev_day >= current_event.start_date
 
-    # Generate hour slots from 6am to 5am next day
-    hour_slots = []
-    for hour in range(6, 24):  # 6am to 11:59pm
-        hour_slots.append(time(hour, 0))
-    for hour in range(0, 6):  # 12am to 5am next day
-        hour_slots.append(time(hour, 0))
-
-    # Create a mapping of hours to their position in the grid
-    hour_to_position = {slot: idx for idx, slot in enumerate(hour_slots)}
+    hour_slots = _generate_hour_slots()
+    hour_to_position = _get_hour_position_mapping(hour_slots)
 
     # Get all locations for this event
     locations = Location.objects.filter(event=current_event)
 
-    # Get all shifts for the current date
+    # Get all shifts for the current date with improved prefetching
     shifts = (
         Shift.objects.filter(date=current_date, event=current_event)
-        .select_related("position")
-        .prefetch_related("volunteers")
+        .select_related("position", "location")
+        .prefetch_related(
+            "volunteers",
+            "shiftvolunteer_set",
+            "shiftvolunteer_set__volunteer",
+        )
     )
 
-    # Organize shifts by location and calculate their grid positions
-    shifts_by_location = {}
-    for location in locations:
-        location_shifts = shifts.filter(location=location)
-        shifts_by_hour = {slot: [] for slot in hour_slots}
-
-        # Group shifts by their time ranges to handle overlaps
-        shift_groups = []  # List of lists of overlapping shifts
-
-        for shift in location_shifts:
-            # Handle shifts that span to next day
-            shift_start = shift.start_time
-            if shift_start.hour < 5:  # If shift starts between 12am-5am
-                # It belongs to previous day's schedule
-                shift_date = current_date - timedelta(days=1)
-            else:
-                shift_date = current_date
-
-            if shift_date == current_date:
-                # Find the start position
-                start_hour = time(shift_start.hour, 0)
-                if start_hour in hour_to_position:
-                    start_pos = hour_to_position[start_hour]
-
-                    # Calculate end position and row span
-                    end_hour = shift.end_time.hour
-                    if end_hour < 5:  # If ends next day before 5am
-                        end_hour += 24
-                    elif end_hour < 6:  # If ends next day after 5am
-                        end_hour = 29  # 5am position
-
-                    # Calculate how many hour slots this shift spans
-                    if shift_start.hour < 5:
-                        start_hour_24 = shift_start.hour + 24
-                    else:
-                        start_hour_24 = shift_start.hour
-                    row_span = end_hour - start_hour_24
-
-                    # Add shift with its position info
-                    shift.grid_row_start = start_pos + 1  # 1-based for CSS grid
-                    shift.grid_row_span = max(1, row_span)  # Ensure at least 1
-
-                    # Find overlapping group or create new one
-                    added_to_group = False
-                    for group in shift_groups:
-                        # Check if this shift overlaps with any shift in the group
-                        overlaps = False
-                        for existing_shift in group:
-                            if (
-                                shift_start < existing_shift.end_time
-                                and shift.end_time > existing_shift.start_time
-                            ):
-                                overlaps = True
-                                break
-
-                        if overlaps:
-                            group.append(shift)
-                            added_to_group = True
-                            # Update all shifts in this group to have same total_columns
-                            total_columns = len(group)
-                            for idx, s in enumerate(group):
-                                s.column = idx  # Distribute shifts across columns
-                                s.total_columns = total_columns
-                            break
-
-                    if not added_to_group:
-                        # Create new group for this shift
-                        shift_groups.append([shift])
-                        shift.column = 0
-                        shift.total_columns = 1
-
-                    shifts_by_hour[start_hour].append(shift)
-
-        shifts_by_location[location] = shifts_by_hour
+    # Process shifts by location
+    shifts_by_location = _process_shifts_for_day_view(shifts, hour_to_position)
 
     return render(
         request,
@@ -428,24 +445,18 @@ def add_shift_modal(request):
         current_path = request.path
         is_day_view = "day/" in referer or "day/" in current_path
 
+        hour_slots = _generate_hour_slots()
+        hour_to_position = _get_hour_position_mapping(hour_slots)
+
         if is_day_view:
             # Get all shifts for the location view
-            shifts = Shift.objects.filter(event=event, date=date)
-            shifts_by_location = defaultdict(lambda: defaultdict(list))
+            shifts = (
+                Shift.objects.filter(event=event, date=date)
+                .select_related("position", "location")
+                .prefetch_related("volunteers")
+            )
+            shifts_by_location = _process_shifts_for_day_view(shifts, hour_to_position)
 
-            # Process each shift
-            for s in shifts:
-                start_hour = s.start_time.hour
-                shift_start = s.start_time
-
-                # Calculate grid positioning
-                s.grid_row_start = start_hour + 1
-                s.grid_row_span = max(1, (s.end_time.hour - s.start_time.hour) * 1)
-
-                # Add to location's shifts
-                shifts_by_location[s.location][start_hour].append(s)
-
-            hour_slots = [{"hour": i} for i in range(24)]
             return render(
                 request,
                 "shifts/partials/location_columns.html",
@@ -459,63 +470,21 @@ def add_shift_modal(request):
             )
         else:
             # Get all shifts for the week view
-            shifts = Shift.objects.filter(event=event, location=location)
-            shifts_by_date = defaultdict(lambda: defaultdict(list))
-            shift_groups = []
-
-            # Process each shift
-            for shift in shifts:
-                start_hour = shift.start_time.hour
-                shift_start = shift.start_time
-
-                # Calculate grid positioning
-                shift.grid_row_start = start_hour + 1
-                shift.grid_row_span = max(
-                    1, (shift.end_time.hour - shift.start_time.hour) * 1
-                )
-
-                # Find overlapping group or create new one
-                added_to_group = False
-                for group in shift_groups:
-                    # Check if this shift overlaps with any shift in the group
-                    overlaps = False
-                    for existing_shift in group:
-                        if (
-                            shift_start < existing_shift.end_time
-                            and shift.end_time > existing_shift.start_time
-                        ):
-                            overlaps = True
-                            break
-
-                    if overlaps:
-                        group.append(shift)
-                        added_to_group = True
-                        # Update all shifts in this group to have same total_columns
-                        total_columns = len(group)
-                        for idx, s in enumerate(group):
-                            s.column = idx  # Distribute shifts across columns
-                            s.total_columns = total_columns
-                        break
-
-                if not added_to_group:
-                    # Create new group for this shift
-                    shift_groups.append([shift])
-                    shift.column = 0
-                    shift.total_columns = 1
-
-                shifts_by_date[shift.date][start_hour].append(shift)
-
-            # Generate hour slots
-            hour_slots = [{"hour": i} for i in range(24)]
+            shifts = (
+                Shift.objects.filter(event=event, location=location)
+                .select_related("position")
+                .prefetch_related("volunteers")
+            )
+            shifts_by_date = _process_shifts_for_week_view(shifts, hour_to_position)
 
             return render(
                 request,
                 "shifts/partials/day_columns.html",
                 {
-                    "shifts_by_date": shifts_by_date,
-                    "event_dates": event.get_dates(),
-                    "hour_slots": hour_slots,
                     "current_event": event,
+                    "event_dates": event.get_dates(),
+                    "shifts_by_date": shifts_by_date,
+                    "hour_slots": hour_slots,
                     "selected_location": location,
                 },
             )
@@ -589,20 +558,11 @@ def assign_volunteers_modal(request, shift_id):
 
         # Return the updated grid
         shifts = Shift.objects.filter(event=shift.event, date=shift.date)
-        shifts_by_location = defaultdict(lambda: defaultdict(list))
+        shifts_by_location = _process_shifts_for_day_view(
+            shifts, _get_hour_position_mapping(_generate_hour_slots())
+        )
 
-        for s in shifts:
-            start_hour = s.start_time.hour
-            shift_start = s.start_time
-
-            # Calculate grid positioning
-            s.grid_row_start = start_hour + 1
-            s.grid_row_span = max(1, (s.end_time.hour - s.start_time.hour) * 1)
-
-            # Add to location's shifts
-            shifts_by_location[s.location][start_hour].append(s)
-
-        hour_slots = [{"hour": i} for i in range(24)]
+        hour_slots = _generate_hour_slots()
         return render(
             request,
             "shifts/partials/day_columns.html",
@@ -644,20 +604,11 @@ def edit_shift_modal(request, shift_id):
         if is_day_view:
             # Get all shifts for the location view
             shifts = Shift.objects.filter(event=event, date=date)
-            shifts_by_location = defaultdict(lambda: defaultdict(list))
+            shifts_by_location = _process_shifts_for_day_view(
+                shifts, _get_hour_position_mapping(_generate_hour_slots())
+            )
 
-            for s in shifts:
-                start_hour = s.start_time.hour
-                shift_start = s.start_time
-
-                # Calculate grid positioning
-                s.grid_row_start = start_hour + 1
-                s.grid_row_span = max(1, (s.end_time.hour - s.start_time.hour) * 1)
-
-                # Add to location's shifts
-                shifts_by_location[s.location][start_hour].append(s)
-
-            hour_slots = [{"hour": i} for i in range(24)]
+            hour_slots = _generate_hour_slots()
             return render(
                 request,
                 "shifts/partials/location_columns.html",
@@ -671,49 +622,12 @@ def edit_shift_modal(request, shift_id):
             )
         else:
             shifts = Shift.objects.filter(event=event, location=location)
-            shifts_by_date = defaultdict(lambda: defaultdict(list))
-            shift_groups = []
+            shifts_by_date = _process_shifts_for_week_view(
+                shifts,
+                _get_hour_position_mapping(_generate_hour_slots()),
+            )
 
-            for s in shifts:
-                start_hour = s.start_time.hour
-                shift_start = s.start_time
-
-                # Calculate grid positioning
-                s.grid_row_start = start_hour + 1
-                s.grid_row_span = max(1, (s.end_time.hour - s.start_time.hour) * 1)
-
-                # Find overlapping group or create new one
-                added_to_group = False
-                for group in shift_groups:
-                    # Check if this shift overlaps with any shift in the group
-                    overlaps = False
-                    for existing_shift in group:
-                        if (
-                            shift_start < existing_shift.end_time
-                            and s.end_time > existing_shift.start_time
-                        ):
-                            overlaps = True
-                            break
-
-                    if overlaps:
-                        group.append(s)
-                        added_to_group = True
-                        # Update all shifts in this group to have same total_columns
-                        total_columns = len(group)
-                        for idx, s in enumerate(group):
-                            s.column = idx  # Distribute shifts across columns
-                            s.total_columns = total_columns
-                        break
-
-                if not added_to_group:
-                    # Create new group for this shift
-                    shift_groups.append([s])
-                    s.column = 0
-                    s.total_columns = 1
-
-                shifts_by_date[s.date][start_hour].append(s)
-
-            hour_slots = [{"hour": i} for i in range(24)]
+            hour_slots = _generate_hour_slots()
             return render(
                 request,
                 "shifts/partials/day_columns.html",
@@ -749,20 +663,11 @@ def edit_shift_modal(request, shift_id):
             if is_day_view:
                 # Get all shifts for the location view
                 shifts = Shift.objects.filter(event=event, date=date)
-                shifts_by_location = defaultdict(lambda: defaultdict(list))
+                shifts_by_location = _process_shifts_for_day_view(
+                    shifts, _get_hour_position_mapping(_generate_hour_slots())
+                )
 
-                for s in shifts:
-                    start_hour = s.start_time.hour
-                    shift_start = s.start_time
-
-                    # Calculate grid positioning
-                    s.grid_row_start = start_hour + 1
-                    s.grid_row_span = max(1, (s.end_time.hour - s.start_time.hour) * 1)
-
-                    # Add to location's shifts
-                    shifts_by_location[s.location][start_hour].append(s)
-
-                hour_slots = [{"hour": i} for i in range(24)]
+                hour_slots = _generate_hour_slots()
                 return render(
                     request,
                     "shifts/partials/location_columns.html",
@@ -777,46 +682,12 @@ def edit_shift_modal(request, shift_id):
             else:
                 # Return updated grid
                 shifts = Shift.objects.filter(event=event, location=location)
-                shifts_by_date = defaultdict(lambda: defaultdict(list))
-                shift_groups = []
+                shifts_by_date = _process_shifts_for_week_view(
+                    shifts,
+                    _get_hour_position_mapping(_generate_hour_slots()),
+                )
 
-                for s in shifts:
-                    start_hour = s.start_time.hour
-                    shift_start = s.start_time
-
-                    # Calculate grid positioning
-                    s.grid_row_start = start_hour + 1
-                    s.grid_row_span = max(1, (s.end_time.hour - s.start_time.hour) * 1)
-
-                    # Find overlapping group or create new one
-                    added_to_group = False
-                    for group in shift_groups:
-                        overlaps = False
-                        for existing_shift in group:
-                            if (
-                                shift_start < existing_shift.end_time
-                                and s.end_time > existing_shift.start_time
-                            ):
-                                overlaps = True
-                                break
-
-                        if overlaps:
-                            group.append(s)
-                            added_to_group = True
-                            total_columns = len(group)
-                            for idx, shift in enumerate(group):
-                                shift.column = idx
-                                shift.total_columns = total_columns
-                            break
-
-                    if not added_to_group:
-                        shift_groups.append([s])
-                        s.column = 0
-                        s.total_columns = 1
-
-                    shifts_by_date[s.date][start_hour].append(s)
-
-                hour_slots = [{"hour": i} for i in range(24)]
+                hour_slots = _generate_hour_slots()
                 return render(
                     request,
                     "shifts/partials/day_columns.html",
@@ -851,21 +722,22 @@ def send_shift_notifications(request, event, volunteers=None):
     Send personalized email notifications to volunteers about their shifts.
     If volunteers is None, send to all volunteers with shifts in the event.
     """
-    print(f"Starting send_shift_notifications for event {event} and volunteers {volunteers}")
+    print(
+        f"Starting send_shift_notifications for event {event} and volunteers {volunteers}"
+    )
     if volunteers is None:
         # Get all volunteers who have shifts in this event and haven't been notified
         volunteers = Volunteer.objects.filter(
-            shifts__event=event,
-            notification_email_sent=False
+            shifts__event=event, notification_email_sent=False
         ).distinct()
 
     errors = []
     for volunteer in volunteers:
         print(f"Processing volunteer {volunteer}")
         # Get all shifts for this volunteer in the event
-        shifts = volunteer.shifts.filter(event=event).order_by('start_time')
+        shifts = volunteer.shifts.filter(event=event).order_by("start_time")
         print(f"Found shifts: {shifts}")
-        
+
         if not shifts.exists():
             print(f"No shifts found for volunteer {volunteer}")
             continue
@@ -873,29 +745,31 @@ def send_shift_notifications(request, event, volunteers=None):
         # Generate confirmation token
         print("Generating confirmation token")
         confirmation_token = volunteer.generate_confirmation_token()
-        
+
         # Prepare email content
         context = {
-            'volunteer': volunteer,
-            'shifts': shifts,
-            'event': event,
-            'confirmation_url': request.build_absolute_uri(
-                reverse('confirm_shifts', kwargs={'token': confirmation_token})
-            )
+            "volunteer": volunteer,
+            "shifts": shifts,
+            "event": event,
+            "confirmation_url": request.build_absolute_uri(
+                reverse("confirm_shifts", kwargs={"token": confirmation_token})
+            ),
         }
         print(f"Context prepared: {context}")
-        
+
         try:
             print("Rendering email template")
             # Render HTML email template
-            html_message = render_to_string('shifts/email/shift_notification.html', context)
+            html_message = render_to_string(
+                "shifts/email/shift_notification.html", context
+            )
             plain_message = strip_tags(html_message)
             print("Template rendered")
-            
+
             print("Sending email")
             # Send email
             send_mail(
-                subject=f'Your Shifts at {event.name}',
+                subject=f"Your Shifts at {event.name}",
                 message=plain_message,
                 from_email=settings.DEFAULT_FROM_EMAIL,
                 recipient_list=[volunteer.email],
@@ -903,16 +777,17 @@ def send_shift_notifications(request, event, volunteers=None):
                 fail_silently=False,
             )
             print("Email sent")
-            
+
             # Mark notification as sent
             volunteer.notification_email_sent = True
-            volunteer.save(update_fields=['notification_email_sent'])
+            volunteer.save(update_fields=["notification_email_sent"])
             print("Notification status updated")
         except Exception as e:
             import traceback
+
             print(f"Error sending email: {str(e)}")
             print(traceback.format_exc())
             errors.append(f"Error sending email to {volunteer.email}: {str(e)}")
-            
+
     if errors:
         raise Exception("; ".join(errors))
