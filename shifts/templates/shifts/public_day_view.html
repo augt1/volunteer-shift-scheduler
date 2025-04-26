@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+{% load shift_tags %}
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ current_date|date:"l, F j" }} - {{ current_event.name }}</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.13.5/dist/cdn.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        [x-cloak] { display: none !important; }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto px-4 py-8">
+        <div class="text-center mb-6">
+            <h1 class="text-3xl font-bold">{{ current_event.name }}</h1>
+            <p class="text-lg text-gray-600 mt-2">Volunteer Schedule</p>
+        </div>
+
+        <div class="flex justify-between items-center mb-8">
+            <div class="flex gap-4 items-center">
+                {% if show_prev %}
+                <a href="{% url 'public_day_view' prev_day.year prev_day.month prev_day.day %}"
+                   class="inline-flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg font-medium hover:bg-gray-50 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 shadow-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                    </svg>
+                    <span>Previous</span>
+                </a>
+                {% endif %}
+                
+                <div class="text-gray-700 font-medium px-4 py-2 bg-gray-50 rounded-lg min-w-[180px] text-center">
+                    {{ current_date|date:"l j F, Y" }}
+                </div>
+                
+                {% if show_next %}
+                <a href="{% url 'public_day_view' next_day.year next_day.month next_day.day %}"
+                   class="inline-flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg font-medium hover:bg-gray-50 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 shadow-sm">
+                    <span>Next</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
+                    </svg>
+                </a>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="overflow-x-auto pb-4">
+            <div class="flex">
+                <!-- Hours column -->
+                <div class="w-16 flex-none sticky left-0 z-10 bg-white">
+                    <div class="h-[72px] bg-white"></div> <!-- Header space -->
+                    <div class="grid grid-cols-1" style="grid-template-rows: repeat({{ hour_slots|length }}, minmax(3rem, auto));">
+                        {% for hour in hour_slots %}
+                        <div class="p-2 {% if hour.hour < 5 %}bg-gray-50{% endif %} border-b border-r border-gray-100">
+                            <div class="text-xs font-medium text-gray-500">{{ hour|time:"H:i" }}</div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Locations grid -->
+                <div id="grid-container" class="flex gap-2">
+                    {% for location in locations %}
+                    <div class="bg-white rounded-lg shadow overflow-hidden w-64 flex-none">
+                        <div class="sticky top-0 text-center p-2 bg-gray-50 border-b h-[72px] z-10">
+                            <div class="font-bold">{{ location.name }}</div>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 relative" style="grid-template-rows: repeat({{ hour_slots|length }}, minmax(3rem, auto));">
+                            {% for hour in hour_slots %}
+                            <div class="{% if hour.hour < 5 %}bg-gray-50{% endif %} border-b border-gray-100 h-12">
+                            </div>
+                            {% endfor %}
+                            
+                            <!-- Shifts as absolute positioned elements -->
+                            {% with location_shifts=shifts_by_location|get_item:location %}
+                            {% for hour_str, shifts in location_shifts.items %}
+                            {% for shift in shifts %}
+                            <div class="absolute px-0.5 group"
+                                 style="top: calc(({{ shift.grid_row_start }} - 1) * 3rem);
+                                        height: calc({{ shift.grid_row_span }} * 3rem - 2px);
+                                        {% if shift.total_columns %}
+                                        left: calc({{ shift.column }} * (100% / {{ shift.total_columns }}));
+                                        width: calc(100% / {{ shift.total_columns }} - 2px);
+                                        {% else %}
+                                        left: 0;
+                                        right: 0;
+                                        {% endif %}">
+                                <div class="h-full p-1 rounded text-xs transition-all duration-200 
+                                          {% if shift.volunteers.count == shift.max_volunteers %}
+                                          bg-{{ shift.position.color }}-200 border-{{ shift.position.color }}-300 border
+                                          group-hover:bg-{{ shift.position.color }}-100
+                                          {% else %}
+                                          bg-{{ shift.position.color }}-100 border-{{ shift.position.color }}-200 border
+                                          group-hover:bg-{{ shift.position.color }}-50
+                                          {% endif %}
+                                          overflow-hidden relative
+                                          group-hover:z-50 group-hover:shadow-xl 
+                                          group-hover:absolute group-hover:h-auto group-hover:min-h-full group-hover:left-0 group-hover:right-0 group-hover:width-auto">
+                                    <div class="font-medium text-{{ shift.position.color }}-900 truncate flex-1">
+                                        {{ shift.position.name }}
+                                    </div>
+                                    
+                                    <div class="flex justify-between items-center mt-0.5 text-xs">
+                                        <div class="text-{{ shift.position.color }}-800">
+                                            {{ shift.start_time|time:"H:i" }} - {{ shift.end_time|time:"H:i" }}
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Display volunteers assigned to this shift -->
+                                    {% if shift.volunteers.all %}
+                                    <div class="mt-0.5 pt-0.5 border-t border-{{ shift.position.color }}-200 {% if shift.grid_row_span < 2 %}opacity-0 group-hover:opacity-100{% endif %}">
+                                        <div class="text-xs text-{{ shift.position.color }}-800 font-medium">Volunteers:</div>
+                                        <ul class="text-xs text-{{ shift.position.color }}-700 mt-0.5 max-h-32 overflow-y-auto">
+                                            {% for volunteer in shift.volunteers.all %}
+                                            <li class="truncate">{{ volunteer.get_full_name }}</li>
+                                            {% endfor %}
+                                        </ul>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                            {% endfor %}
+                            {% endwith %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

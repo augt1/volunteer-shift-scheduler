@@ -406,6 +406,62 @@ def location_day_view(request, year, month, day):
     )
 
 
+def public_day_view(request, year, month, day):
+    """
+    Public view of the day calendar without authentication requirements.
+    Shows a simplified version of the day view without administrative controls.
+    """
+    # Get the current event
+    current_event = Event.objects.latest("start_date")
+
+    # Create the requested date
+    current_date = datetime(year, month, day).date()
+
+    # Calculate next and previous days
+    next_day = current_date + timedelta(days=1)
+    prev_day = current_date - timedelta(days=1)
+
+    # Only show navigation if within event dates
+    show_next = next_day <= current_event.end_date
+    show_prev = prev_day >= current_event.start_date
+
+    hour_slots = _generate_hour_slots()
+    hour_to_position = _get_hour_position_mapping(hour_slots)
+
+    # Get all locations for this event
+    locations = Location.objects.filter(event=current_event)
+
+    # Get all shifts for the current date with improved prefetching
+    shifts = (
+        Shift.objects.filter(date=current_date, event=current_event)
+        .select_related("position", "location")
+        .prefetch_related(
+            "volunteers",
+            "shiftvolunteer_set",
+            "shiftvolunteer_set__volunteer",
+        )
+    )
+
+    # Process shifts by location
+    shifts_by_location = _process_shifts_for_day_view(shifts, hour_to_position)
+
+    return render(
+        request,
+        "shifts/public_day_view.html",
+        {
+            "current_event": current_event,
+            "current_date": current_date,
+            "hour_slots": hour_slots,
+            "locations": locations,
+            "shifts_by_location": shifts_by_location,
+            "show_next": show_next,
+            "show_prev": show_prev,
+            "next_day": next_day,
+            "prev_day": prev_day,
+        },
+    )
+
+
 @login_required
 def assign_volunteer_modal(request, shift_id):
     shift = get_object_or_404(Shift, id=shift_id)

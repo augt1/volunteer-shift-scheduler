@@ -4,6 +4,7 @@ from . import views
 urlpatterns = [
     path("", views.week_view, name="week_view"),
     path("day/<int:year>/<int:month>/<int:day>/", views.location_day_view, name="location_day_view"),
+    path("public/day/<int:year>/<int:month>/<int:day>/", views.public_day_view, name="public_day_view"),
     path("add-shift/", views.add_shift_modal, name="add_shift_modal"),
     path("shifts/<int:shift_id>/edit/", views.edit_shift_modal, name="edit_shift_modal"),
     path("shifts/<int:shift_id>/assign/", views.assign_volunteers_modal, name="assign_volunteers_modal"),
