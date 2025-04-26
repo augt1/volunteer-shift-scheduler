@@ -32,14 +32,40 @@
             border-left: 4px solid #4f46e5;
         }
         .whatsapp-link {
-            display: inline-block;
-            margin-top: 5px;
-            padding: 5px 10px;
+            display: block;
+            width: fit-content;
+            margin: 10px auto 5px;
+            padding: 8px 16px;
             background-color: #25D366;
             color: white;
             text-decoration: none;
-            border-radius: 4px;
+            border-radius: 20px;
             font-size: 14px;
+            font-weight: 500;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            transition: all 0.2s ease;
+        }
+        .whatsapp-link:hover {
+            background-color: #128C7E;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            transform: translateY(-1px);
+        }
+        .confirm-button {
+            display: inline-block;
+            padding: 12px 24px;
+            background-color: #4f46e5;
+            color: white;
+            text-decoration: none;
+            border-radius: 30px;
+            font-weight: 500;
+            box-shadow: 0 4px 6px rgba(79, 70, 229, 0.25);
+            transition: all 0.2s ease;
+        }
+        .confirm-button:hover {
+            background-color: #4338ca;
+            box-shadow: 0 6px 10px rgba(79, 70, 229, 0.3);
+            transform: translateY(-2px);
         }
         .translation {
             margin-top: 30px;
@@ -87,15 +113,7 @@
         <p>Please confirm your attendance by clicking the button below:</p>
         
         <div style="text-align: center; margin: 30px 0;">
-            <a href="{{ confirmation_url }}" style="
-                display: inline-block;
-                padding: 12px 24px;
-                background-color: #4f46e5;
-                color: white;
-                text-decoration: none;
-                border-radius: 6px;
-                font-weight: 500;
-            ">
+            <a href="{{ confirmation_url }}" class="confirm-button">
                 Confirm My Shifts
             </a>
         </div>
@@ -134,15 +152,7 @@
             <p>Παρακαλώ επιβεβαιώστε τη συμμετοχή σας κάνοντας κλικ στο παρακάτω κουμπί:</p>
             
             <div style="text-align: center; margin: 30px 0;">
-                <a href="{{ confirmation_url }}" style="
-                    display: inline-block;
-                    padding: 12px 24px;
-                    background-color: #4f46e5;
-                    color: white;
-                    text-decoration: none;
-                    border-radius: 6px;
-                    font-weight: 500;
-                ">
+                <a href="{{ confirmation_url }}" class="confirm-button">
                     Επιβεβαίωση των βαρδιών μου
                 </a>
             </div>
