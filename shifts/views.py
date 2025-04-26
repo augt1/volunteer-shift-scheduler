@@ -253,6 +253,45 @@ def _enhance_volunteers_with_stats(volunteers, event):
     return volunteers
 
 
+def _prepare_shift_email_context(request, volunteer, event, preview=False):
+    """
+    Prepare the context for shift notification emails.
+    
+    Args:
+        request: The HTTP request object
+        volunteer: The volunteer to prepare the email for
+        event: The event containing the shifts
+        preview: Whether this is for preview (uses dummy token) or actual email
+        
+    Returns:
+        tuple: (shifts, context) where shifts is the queryset of shifts and
+               context is the dictionary of template context variables
+    """
+    # Get all shifts for this volunteer in the event
+    shifts = volunteer.shifts.filter(event=event).order_by("date", "start_time")
+    
+    if not shifts.exists():
+        return None, None
+    
+    # Generate confirmation token
+    if preview:
+        confirmation_token = "preview-token"
+    else:
+        confirmation_token = volunteer.generate_confirmation_token()
+    
+    # Prepare email context
+    context = {
+        "volunteer": volunteer,
+        "shifts": shifts,
+        "event": event,
+        "confirmation_url": request.build_absolute_uri(
+            reverse("confirm_shifts", kwargs={"token": confirmation_token})
+        ),
+    }
+    
+    return shifts, context
+
+
 @login_required
 def week_view(request):
     # Get the current event
@@ -996,27 +1035,14 @@ def send_shift_notifications(request, event, volunteers=None):
     errors = []
     for volunteer in volunteers:
         print(f"Processing volunteer {volunteer}")
-        # Get all shifts for this volunteer in the event
-        shifts = volunteer.shifts.filter(event=event).order_by("start_time")
-        print(f"Found shifts: {shifts}")
-
-        if not shifts.exists():
+        
+        # Prepare email context using the helper function
+        shifts, context = _prepare_shift_email_context(request, volunteer, event)
+        
+        if not shifts:
             print(f"No shifts found for volunteer {volunteer}")
             continue
-
-        # Generate confirmation token
-        print("Generating confirmation token")
-        confirmation_token = volunteer.generate_confirmation_token()
-
-        # Prepare email content
-        context = {
-            "volunteer": volunteer,
-            "shifts": shifts,
-            "event": event,
-            "confirmation_url": request.build_absolute_uri(
-                reverse("confirm_shifts", kwargs={"token": confirmation_token})
-            ),
-        }
+            
         print(f"Context prepared: {context}")
 
         try:
@@ -1053,3 +1079,30 @@ def send_shift_notifications(request, event, volunteers=None):
 
     if errors:
         raise Exception("; ".join(errors))
+
+
+@login_required
+def preview_email(request, volunteer_id):
+    """
+    Generate a preview of the email that would be sent to a volunteer.
+    """
+    # Get the volunteer
+    volunteer = get_object_or_404(Volunteer, id=volunteer_id)
+    
+    # Get the current event
+    event = Event.objects.first()
+    if not event:
+        return HttpResponseBadRequest("No active event found")
+    
+    # Prepare email context using the helper function
+    shifts, context = _prepare_shift_email_context(request, volunteer, event, preview=True)
+    
+    if not shifts:
+        return HttpResponseBadRequest("No shifts found for this volunteer")
+    
+    # Render the preview modal
+    return render(
+        request,
+        "shifts/partials/email_preview_modal.html",
+        context
+    )

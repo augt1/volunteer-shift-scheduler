@@ -31,6 +31,28 @@
             background-color: white;
             border-left: 4px solid #4f46e5;
         }
+        .whatsapp-link {
+            display: inline-block;
+            margin-top: 5px;
+            padding: 5px 10px;
+            background-color: #25D366;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .translation {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+        }
+        .text-version {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
     </style>
 </head>
 <body>
@@ -41,7 +63,7 @@
         
         <p>Hello {{ volunteer.first_name }},</p>
         
-        <p>This is a reminder of your upcoming shifts at {{ event.name }}:</p>
+        <p>These are your upcoming shifts at {{ event.name }}:</p>
         
         <div class="shift-details">
             {% for shift in shifts %}
@@ -50,6 +72,14 @@
                 Time: {{ shift.start_time|time:"g:i A" }} - {{ shift.end_time|time:"g:i A" }}<br>
                 Location: {{ shift.location.name|default:"TBD" }}<br>
                 Role: {{ shift.position|default:"TBD" }}
+                <br>
+                {% if shift.position.name == "Floor" %}
+                <a href="https://chat.whatsapp.com/FwAEmseV1cX6HonNAiNTEK" class="whatsapp-link">Join Floor WhatsApp Group</a>
+                {% elif shift.position.name == "Registration" %}
+                <a href="https://chat.whatsapp.com/GSFaCt2sQ4D9ZEVvvhQ1NZ" class="whatsapp-link">Join Registration WhatsApp Group</a>
+                {% elif shift.position.name == "Pass Check" %}
+                <a href="https://chat.whatsapp.com/FnEwnQWqMLz71HohkhXqw5" class="whatsapp-link">Join Pass Check WhatsApp Group</a>
+                {% endif %}
             </div>
             {% endfor %}
         </div>
@@ -70,10 +100,135 @@
             </a>
         </div>
         
-        <p>If you need to make any changes to your schedule, please contact the event coordinator.</p>
+        <p>If you need to make any changes to your schedule, please reply to this email.</p>
         
         <p>Thank you for volunteering!</p>
         <p>Best regards,<br>{{ event.name }} Team</p>
+
+        <!-- Greek Translation -->
+        <div class="translation">
+            <h2>Ελληνική Μετάφραση</h2>
+            <p>Γεια σας {{ volunteer.first_name }},</p>
+            
+            <p>Αυτή είναι μια ενημέρωση για τις επερχόμενες βάρδιες σας στο {{ event.name }}:</p>
+            
+            <div class="shift-details">
+                {% for shift in shifts %}
+                <div class="shift-item">
+                    <strong>{{ shift.date|date:"l, F j" }}</strong><br>
+                    Ώρα: {{ shift.start_time|time:"g:i A" }} - {{ shift.end_time|time:"g:i A" }}<br>
+                    Τοποθεσία: {{ shift.location.name|default:"Θα ανακοινωθεί" }}<br>
+                    Ρόλος: {{ shift.position|default:"Θα ανακοινωθεί" }}
+                    <br>
+                    {% if shift.position.name == "Floor" %}
+                    <a href="https://chat.whatsapp.com/FwAEmseV1cX6HonNAiNTEK" class="whatsapp-link">Συμμετοχή στην ομάδα WhatsApp του Floor</a>
+                    {% elif shift.position.name == "Registration" %}
+                    <a href="https://chat.whatsapp.com/GSFaCt2sQ4D9ZEVvvhQ1NZ" class="whatsapp-link">Συμμετοχή στην ομάδα WhatsApp του Registration</a>
+                    {% elif shift.position.name == "Pass Check" %}
+                    <a href="https://chat.whatsapp.com/FnEwnQWqMLz71HohkhXqw5" class="whatsapp-link">Συμμετοχή στην ομάδα WhatsApp του Pass Check</a>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            
+            <p>Παρακαλώ επιβεβαιώστε τη συμμετοχή σας κάνοντας κλικ στο παρακάτω κουμπί:</p>
+            
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="{{ confirmation_url }}" style="
+                    display: inline-block;
+                    padding: 12px 24px;
+                    background-color: #4f46e5;
+                    color: white;
+                    text-decoration: none;
+                    border-radius: 6px;
+                    font-weight: 500;
+                ">
+                    Επιβεβαίωση των βαρδιών μου
+                </a>
+            </div>
+            
+            <p>Εάν χρειάζεται να κάνετε οποιεσδήποτε αλλαγές στο πρόγραμμά σας, παρακαλώ απαντήστε σε αυτό το email.</p>
+            
+            <p>Σας ευχαριστούμε για την εθελοντική σας συμμετοχή!</p>
+            <p>Με εκτίμηση,<br>Η ομάδα του {{ event.name }}</p>
+        </div>
+
+        <!-- Plain Text Version -->
+        <div class="text-version">
+            <div x-data="{ showPlainText: false }">
+                <button 
+                    @click="showPlainText = !showPlainText" 
+                    class="flex items-center px-4 py-2 font-medium text-gray-700 bg-gray-100 rounded hover:bg-gray-200"
+                >
+                    <span x-text="showPlainText ? 'Hide Plain Text Version' : 'Show Plain Text Version'"></span>
+                    <svg 
+                        class="w-5 h-5 ml-2" 
+                        :class="{'transform rotate-180': showPlainText}"
+                        fill="none" 
+                        stroke="currentColor" 
+                        viewBox="0 0 24 24"
+                    >
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                </button>
+                
+                <div x-show="showPlainText" x-cloak class="mt-4">
+                    <pre class="p-4 bg-gray-50 border border-gray-200 rounded text-sm overflow-auto">Hello {{ volunteer.first_name }},
+
+These are your upcoming shifts at {{ event.name }}:
+
+{% for shift in shifts %}
+* {{ shift.date|date:"l, F j" }}
+  Time: {{ shift.start_time|time:"g:i A" }} - {{ shift.end_time|time:"g:i A" }}
+  Location: {{ shift.location.name|default:"TBD" }}
+  Role: {{ shift.position|default:"TBD" }}
+  {% if shift.position.name == "Floor" %}
+  WhatsApp Group: https://chat.whatsapp.com/FwAEmseV1cX6HonNAiNTEK
+  {% elif shift.position.name == "Registration" %}
+  WhatsApp Group: https://chat.whatsapp.com/GSFaCt2sQ4D9ZEVvvhQ1NZ
+  {% elif shift.position.name == "Pass Check" %}
+  WhatsApp Group: https://chat.whatsapp.com/FnEwnQWqMLz71HohkhXqw5
+  {% endif %}
+{% endfor %}
+
+Please confirm your attendance by visiting: {{ confirmation_url }}
+
+If you need to make any changes to your schedule, please reply to this email.
+
+Thank you for volunteering!
+Best regards,
+{{ event.name }} Team
+
+--- ΕΛΛΗΝΙΚΑ ---
+
+Γεια σας {{ volunteer.first_name }},
+
+Αυτή είναι μια ενημέρωση για τις επερχόμενες βάρδιες σας στο {{ event.name }}:
+
+{% for shift in shifts %}
+* {{ shift.date|date:"l, F j" }}
+  Ώρα: {{ shift.start_time|time:"g:i A" }} - {{ shift.end_time|time:"g:i A" }}
+  Τοποθεσία: {{ shift.location.name|default:"Θα ανακοινωθεί" }}
+  Ρόλος: {{ shift.position|default:"Θα ανακοινωθεί" }}
+  {% if shift.position.name == "Floor" %}
+  Ομάδα WhatsApp: https://chat.whatsapp.com/FwAEmseV1cX6HonNAiNTEK
+  {% elif shift.position.name == "Registration" %}
+  Ομάδα WhatsApp: https://chat.whatsapp.com/GSFaCt2sQ4D9ZEVvvhQ1NZ
+  {% elif shift.position.name == "Pass Check" %}
+  Ομάδα WhatsApp: https://chat.whatsapp.com/FnEwnQWqMLz71HohkhXqw5
+  {% endif %}
+{% endfor %}
+
+Παρακαλώ επιβεβαιώστε τη συμμετοχή σας επισκεπτόμενοι: {{ confirmation_url }}
+
+Εάν χρειάζεται να κάνετε οποιεσδήποτε αλλαγές στο πρόγραμμά σας, παρακαλώ απαντήστε σε αυτό το email.
+
+Σας ευχαριστούμε για την εθελοντική σας συμμετοχή!
+Με εκτίμηση,
+Η ομάδα του {{ event.name }}</pre>
+                </div>
+            </div>
+        </div>
     </div>
 </body>
 </html>

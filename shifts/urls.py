@@ -12,4 +12,5 @@ urlpatterns = [
     path("unassign-volunteer/<int:shift_id>/<int:volunteer_id>/", views.unassign_volunteer, name="unassign_volunteer"),
     path("close-modal/", views.close_modal, name="close_modal"),
     path("manage-volunteer-positions/<int:volunteer_id>/", views.manage_volunteer_positions, name="manage_volunteer_positions"),
+    path("preview-email/<int:volunteer_id>/", views.preview_email, name="preview_email"),
 ]
