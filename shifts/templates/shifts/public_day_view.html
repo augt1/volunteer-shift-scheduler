@@ -11,12 +11,31 @@
     <style>
         [x-cloak] { display: none !important; }
         
+        .calendar-container {
+            position: relative;
+            overflow-x: auto;
+            width: 100%;
+        }
+        
         .hours-column {
             position: sticky;
             left: 0;
-            z-index: 20;
+            z-index: 30;
             background-color: white;
             box-shadow: 2px 0 4px rgba(0, 0, 0, 0.05);
+        }
+        
+        .location-header {
+            position: sticky;
+            top: 0;
+            z-index: 20;
+            background-color: #f9fafb;
+        }
+        
+        .hour-cell {
+            height: 3rem;
+            display: flex;
+            align-items: center;
         }
         
         @media (max-width: 640px) {
@@ -72,14 +91,14 @@
             </div>
         </div>
 
-        <div class="overflow-x-auto pb-4">
-            <div class="flex">
+        <div class="calendar-container">
+            <div class="inline-flex min-w-full">
                 <!-- Hours column -->
                 <div class="w-12 sm:w-16 flex-none hours-column">
-                    <div class="h-[72px] bg-white"></div> <!-- Header space -->
+                    <div class="h-[72px] bg-white location-header"></div> <!-- Header space -->
                     <div class="grid grid-cols-1" style="grid-template-rows: repeat({{ hour_slots|length }}, minmax(3rem, auto));">
                         {% for hour in hour_slots %}
-                        <div class="p-1 sm:p-2 {% if hour.hour < 5 %}bg-gray-50{% endif %} border-b border-r border-gray-100">
+                        <div class="hour-cell p-1 sm:p-2 {% if hour.hour < 5 %}bg-gray-50{% endif %} border-b border-r border-gray-100">
                             <div class="text-xs font-medium text-gray-500">{{ hour|time:"H:i" }}</div>
                         </div>
                         {% endfor %}
@@ -87,12 +106,12 @@
                 </div>
 
                 <!-- Locations grid -->
-                <div id="grid-container" class="flex gap-2">
+                <div class="flex gap-2">
                     {% for location in locations %}
                         {% with location_shifts=shifts_by_location|get_item:location %}
                         {% if location_shifts %}
                         <div class="bg-white rounded-lg shadow overflow-hidden w-[250px] sm:w-64 flex-none location-column">
-                            <div class="sticky top-0 text-center p-2 bg-gray-50 border-b h-[72px] z-10">
+                            <div class="location-header sticky top-0 text-center p-2 border-b h-[72px]">
                                 <div class="font-bold">{{ location.name }}</div>
                             </div>
                             
