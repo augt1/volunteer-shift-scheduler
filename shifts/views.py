@@ -444,6 +444,9 @@ def public_day_view(request, year, month, day):
 
     # Process shifts by location
     shifts_by_location = _process_shifts_for_day_view(shifts, hour_to_position)
+    
+    # Check if there are any shifts for this day
+    has_shifts = shifts.exists()
 
     return render(
         request,
@@ -458,6 +461,7 @@ def public_day_view(request, year, month, day):
             "show_prev": show_prev,
             "next_day": next_day,
             "prev_day": prev_day,
+            "has_shifts": has_shifts,
         },
     )
 
