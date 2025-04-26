@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db.models import Count, F, FloatField, Max, Min, Q, Sum
+from django.db.models import Case, Count, F, FloatField, IntegerField, Max, Min, Q, Sum, When
 from django.db.models.functions import Coalesce, ExtractHour, ExtractMinute
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -75,13 +75,27 @@ def volunteer_list(request):
     volunteers = volunteers.annotate(
         total_shifts=Count("shifts"),
         total_hours=Sum(
-            (
-                ExtractHour("shifts__end_time") * 60
-                + ExtractMinute("shifts__end_time")
-                - ExtractHour("shifts__start_time") * 60
-                - ExtractMinute("shifts__start_time")
-            )
-            / 60.0,
+            Case(
+                # When end_time is less than start_time, it means the shift crosses midnight
+                When(
+                    shifts__end_time__lt=F('shifts__start_time'),
+                    then=(
+                        # For shifts crossing midnight: add 24 hours to end_time before calculating
+                        (ExtractHour("shifts__end_time") + 24) * 60
+                        + ExtractMinute("shifts__end_time")
+                        - ExtractHour("shifts__start_time") * 60
+                        - ExtractMinute("shifts__start_time")
+                    )
+                ),
+                # Normal case when shift doesn't cross midnight
+                default=(
+                    ExtractHour("shifts__end_time") * 60
+                    + ExtractMinute("shifts__end_time")
+                    - ExtractHour("shifts__start_time") * 60
+                    - ExtractMinute("shifts__start_time")
+                ),
+                output_field=IntegerField(),
+            ) / 60.0,
             output_field=FloatField(),
         ),
     ).order_by("first_name", "last_name")
@@ -203,15 +217,28 @@ def volunteer_schedule(request):
         .annotate(
             shift_count=Count("shifts"),
             total_hours=Sum(
-                (
-                    ExtractHour("shifts__end_time") * 60
-                    + ExtractMinute("shifts__end_time")
-                    - ExtractHour("shifts__start_time") * 60
-                    - ExtractMinute("shifts__start_time")
-                )
-                / 60.0,
+                Case(
+                    # When end_time is less than start_time, it means the shift crosses midnight
+                    When(
+                        shifts__end_time__lt=F('shifts__start_time'),
+                        then=(
+                            # For shifts crossing midnight: add 24 hours to end_time before calculating
+                            (ExtractHour("shifts__end_time") + 24) * 60
+                            + ExtractMinute("shifts__end_time")
+                            - ExtractHour("shifts__start_time") * 60
+                            - ExtractMinute("shifts__start_time")
+                        )
+                    ),
+                    # Normal case when shift doesn't cross midnight
+                    default=(
+                        ExtractHour("shifts__end_time") * 60
+                        + ExtractMinute("shifts__end_time")
+                        - ExtractHour("shifts__start_time") * 60
+                        - ExtractMinute("shifts__start_time")
+                    ),
+                    output_field=IntegerField(),
+                ) / 60.0,
                 output_field=FloatField(),
-                default=0,
             ),
         )
         .order_by("first_name", "last_name")
